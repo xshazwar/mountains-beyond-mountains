@@ -1,0 +1,2 @@
+
+   #pragma instancing_options procedural:ConfigureProcedural

@@ -1,0 +1,7 @@
+
+   _Tint ("Tint", Color) = (1, 1, 1, 1)
+   _Mesh_Res ("Mesh Resolution", Float) = 0
+   _Mesh_Size ("Mesh Size", Float) = 0
+   _Height ("Height", Float) = 1000
+   _MeshOverlap ("Mesh Overlap", Float) = 2
+   _DownScale ("DownScale", Float) = 1 // must be a power of 2!

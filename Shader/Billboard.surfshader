@@ -1,0 +1,130 @@
+BEGIN_OPTIONS
+END_OPTIONS
+
+BEGIN_PROPERTIES
+	_Tint ("Tint", Color) = (1, 1, 1, 1)
+   _Mesh_Res ("Mesh Resolution", Float) = 0
+   _Mesh_Size ("Mesh Size", Float) = 0
+   _Height ("Height", Float) = 1000
+   _MeshOverlap ("Mesh Overlap", Float) = 2
+   _DownScale ("DownScale", Float) = 1 // must be a power of 2!
+
+END_PROPERTIES
+
+// Any variables you want to have in the per material CBuffer go here.
+BEGIN_CBUFFER
+   half4 _Tint;
+   float _Mesh_Res;
+   float _Mesh_Size;
+   float _MeshOverlap;
+   float _Height;
+   float _DownScale;
+   uniform StructuredBuffer<OffsetData> _Offset;
+   uniform StructuredBuffer<float> _TerrainValues;
+   uniform StructuredBuffer<int> _FOV;
+END_CBUFFER
+
+// if you are writing a subshader, any defines that should be set on the main
+// shader are defined here
+BEGIN_DEFINES
+   #pragma multi_compile_instancing
+   #pragma instancing_options procedural:ConfigureProcedural
+
+   struct OffsetData {
+      float x;
+      // to make something inactive (when drawn as real terrain, we just sink it out of camera range);
+      // so this will be either 0 or -10000
+      float y;
+      float z;
+      float id;
+   };
+
+END_DEFINES
+
+
+// All code goes here
+
+BEGIN_CODE
+
+   OffsetData _offset;
+   float MESH_RATIO;
+   int FMR;
+   int FMR_SQR;
+   float EPS;
+
+
+   void ConfigureProcedural () {
+      #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
+         int idx = _FOV[unity_InstanceID];
+         _offset = _Offset[idx];
+         MESH_RATIO = _Mesh_Size / _Mesh_Res;
+         FMR = ((int) _Mesh_Res) + 2 * ((int)_MeshOverlap);
+         FMR_SQR = FMR * FMR;
+         EPS = FMR / _Mesh_Size;
+      #endif
+   }
+
+   int HeightIdx(in int tileID, int x, int z){
+      #if _DownScale <= 1
+         return tileID * FMR_SQR + (z * FMR + x);
+      #endif
+      #if _DownScale > 1
+         // super simple downscale (heighmap has more values than mesh)
+         // so if the mesh is 1/2 the complexity of the HM, we skip every other HM value
+         return tileID * FMR_SQR + ((z * FMR * _DownScale + x * _DownScale);
+      #endif
+   }
+
+   float InterpolateEdge(float a, float b){
+      return a - (b - a);
+   }
+
+   float HeightValue(in int tileID, int x, int z){
+      x = x < 0 ? 0 : x;
+      x = x > FMR ? FMR: x;
+      z = z < 0 ? 0 : z;
+      z = z > FMR ? FMR: z;
+      return _TerrainValues[HeightIdx(tileID, x, z)];
+   }
+
+   void ApplyNormal(inout VertexData v, in float x, in float z, in int tileID){
+      float t = HeightValue(tileID, x, z);
+      float l = x > 0 ? HeightValue(tileID, x - 1, z): InterpolateEdge(t, HeightValue(tileID, x + 1, z));
+      float r = x < FMR - 1 ? HeightValue(tileID, x + 1, z): InterpolateEdge(t, HeightValue(tileID, x - 1, z));
+      float u = z > 0 ? HeightValue(tileID, x, z - 1): InterpolateEdge(t, HeightValue(tileID, x, z + 1));
+      float d = z < FMR - 1 ? HeightValue(tileID, x, z + 1): InterpolateEdge(t, HeightValue(tileID, x, z - 1));
+      // float3 t1 = float3(4.0, (r - l) /(2), 0);
+      // float3 t2 = float3(0, (u - d) /(2), 4.0);
+      // v.tangent.xyz = cross(t2, t1);
+      v.normal = normalize(float3((l - r) / 2 * EPS, 2 / _Height, (u - d) / 2 * EPS));
+      return;
+   }
+
+   void ModifyVertex(inout VertexData v, inout ExtraV2F d){
+   #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
+		// only do it in this stage if we're not tessellated, otherwise lets
+		// do it in the tessellated stage for better resolution
+      int idx = HeightIdx((int) _offset.id, v.vertex.x, v.vertex.z);
+      ApplyNormal(v, v.vertex.x, v.vertex.z, (int) _offset.id);
+      [flatten] if (_offset.y < -5000){
+         v.vertex.y = 0;
+         v.vertex.x = 0;
+         v.vertex.z = 0;
+      } else {
+         v.vertex.y = clamp((_TerrainValues[idx] * _Height) + _offset.y, 0 , .999 * _Height);
+         v.vertex.x = (v.vertex.x * MESH_RATIO) + _offset.x - ( _MeshOverlap * MESH_RATIO);
+         v.vertex.z = (v.vertex.z * MESH_RATIO) + _offset.z - (_MeshOverlap * MESH_RATIO);   
+      }
+   #endif
+	}
+
+	void SurfaceFunction(inout Surface o, ShaderData d){
+   #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
+      o.Albedo = _Tint.rgb;
+      o.Alpha = 1; //_Tint.a;
+   #else
+      o.Albedo = (0,0,0);
+   #endif
+	}
+
+END_CODE

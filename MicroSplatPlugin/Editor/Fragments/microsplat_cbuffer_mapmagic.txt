@@ -1,0 +1,10 @@
+
+   half4 _Tint;
+   float _Mesh_Res;
+   float _Mesh_Size;
+   float _MeshOverlap;
+   float _Height;
+   float _DownScale;
+   uniform StructuredBuffer<float4> _Offset;
+   uniform StructuredBuffer<float> _TerrainValues;
+   uniform StructuredBuffer<int> _FOV;
