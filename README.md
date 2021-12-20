@@ -1,6 +1,6 @@
 ## Introduction:
 
-This tool is intended to allow you to draw large amounts of distant virtual terrain in Unity. By virtual we mean only to be seen and not interacted with on the CPU side, so no colliders, no game objects etc. Anything could in theory be used to provide the heightmaps for the terrain, but MapMagic2 is what's required by the included `ExternGeneration` component and used by `Generation.cs` as a data source.  
+This tool is intended to allow you to draw large amounts of distant virtual terrain in Unity. By virtual we mean only to be seen and not interacted with on the CPU side, so no colliders, no game objects etc. Anything could in theory be used to provide the heightmaps for the terrain, but MapMagic2 is what's required by the included `ExternGeneration` component and used by `Generation.cs` as a data source. This does not currently play well with "pinned tiles". It can, but there are competing priorities so open a ticket if you're interested.
 
 
 ## Quickstart:
