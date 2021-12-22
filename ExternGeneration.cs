@@ -44,10 +44,12 @@ namespace xshazwar {
             }
             renderer = new TerrainRenderer(material, endDistance, downscale, (int) resolution, margin, mapMagic.tileSize.x, mapMagic.globals.height, startDistance, debugColor);
             MSProceduralRules procRules = gameObject.GetComponent<MSProceduralRules>();
+#if __MICROSPLAT__
             if (procRules != null && procRules.procTexCfg != null){
                 procRules.setBuffersFromRules(renderer.materialProps);
                 Debug.Log("Set procedural rules");
             }
+#endif
             generator = new Generator(mapMagic, leader?.generator, renderer, resolution, margin, mapMagic.tileSize, endDistance, startDistance, camera.gameObject.transform.position);
         }
 
