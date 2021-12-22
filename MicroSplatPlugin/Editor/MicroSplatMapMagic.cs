@@ -4,10 +4,12 @@ using UnityEditor;
 using UnityEditor.Callbacks;
 using System.Collections.Generic;
 
+#if __MICROSPLAT__
 using JBooth.MicroSplat;
+#endif
 
 namespace xshazwar.MM2 {
-    #if __MICROSPLAT__
+#if __MICROSPLAT__
    [InitializeOnLoad]
    public class MicroSplatMapMagic : FeatureDescriptor
    {
@@ -212,5 +214,5 @@ namespace xshazwar.MM2 {
 
    }   
 
-   #endif
+#endif
 }
