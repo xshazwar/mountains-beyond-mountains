@@ -28,20 +28,43 @@ namespace xshazwar
             return 4 * 4; // 5 * 4bytes float
         }
 
-        public void AssignElement(ref Vector3 v, float x, float y, float z){
+        public static Vector4[] frustrumFromMatrix(Matrix4x4 mat){
+            Vector4[] planes = new Vector4[6];
+            //left
+            planes[0] = new Vector4(mat.m30 + mat.m00, mat.m31 + mat.m01, mat.m32 + mat.m02, mat.m33 + mat.m03);
+            // right
+            planes[1] = new Vector4(mat.m30 - mat.m00, mat.m31 - mat.m01, mat.m32 - mat.m02, mat.m33 - mat.m03);
+            // bottom
+            planes[2] = new Vector4(mat.m30 + mat.m10, mat.m31 + mat.m11, mat.m32 + mat.m12, mat.m33 + mat.m13);
+            // top
+            planes[3] = new Vector4(mat.m30 - mat.m10, mat.m31 - mat.m11, mat.m32 - mat.m12, mat.m33 - mat.m13);
+            // near
+            planes[4] = new Vector4(mat.m30 + mat.m20, mat.m31 + mat.m21, mat.m32 + mat.m22, mat.m33 + mat.m23);
+            // far
+            planes[5] = new Vector4(mat.m30 - mat.m20, mat.m31 - mat.m21, mat.m32 - mat.m22, mat.m33 - mat.m23);
+            // normalize
+            for (uint i = 0; i < 6; i++)
+            {
+                planes[i].Normalize();
+            }
+            return planes;
+        }
+
+        public void AssignElement(ref Vector4 v, float x, float y, float z, float w){
             v.x = x;
             v.y = y;
             v.z = z;
+            v.w = w;
         }
-        public void corners(float tileSize, float height, ref Vector3[] _corners){  // WS tile corner positions in the x, z plane. We don't cull based on height ATM
-            AssignElement(ref _corners[0], this.x, 0f, this.z);
-            AssignElement(ref _corners[1], this.x + tileSize, 0f, this.z);
-            AssignElement(ref _corners[2], this.x + tileSize, 0f, this.z + tileSize);
-            AssignElement(ref _corners[3], this.x , 0f, this.z + tileSize);
-            AssignElement(ref _corners[4], this.x, height, this.z);
-            AssignElement(ref _corners[5], this.x + tileSize, height, this.z);
-            AssignElement(ref _corners[6], this.x + tileSize, height, this.z + tileSize);
-            AssignElement(ref _corners[7], this.x , height, this.z + tileSize);
+        public void corners(float tileSize, float height, ref Vector4[] _corners){
+            AssignElement(ref _corners[0], this.x, 0f, this.z, 1f);
+            AssignElement(ref _corners[1], this.x + tileSize, 0f, this.z, 1f);
+            AssignElement(ref _corners[2], this.x + tileSize, 0f, this.z + tileSize, 1f);
+            AssignElement(ref _corners[3], this.x , 0f, this.z + tileSize, 1f);
+            AssignElement(ref _corners[4], this.x, height, this.z, 1f);
+            AssignElement(ref _corners[5], this.x + tileSize, height, this.z, 1f);
+            AssignElement(ref _corners[6], this.x + tileSize, height, this.z + tileSize, 1f);
+            AssignElement(ref _corners[7], this.x , height, this.z + tileSize, 1f);
         }
 
         public bool visible(Vector3 r){ // relative position
@@ -50,14 +73,20 @@ namespace xshazwar
             }
             return true;
         }
-        public bool visibleIn(Camera camera, float tileSize, float height, ref Vector3[] _corners){
+        public bool visibleIn(ref Vector4[] planes, float tileSize, float height, ref Vector4[] _corners){
             this.corners(tileSize, height, ref _corners);
-            foreach (Vector3 p in _corners){
-                if(this.visible(camera.WorldToViewportPoint(p))){
-                    return true;
+            int i = 0;
+            foreach(Vector4 p in planes){
+                i = 0;
+                foreach (Vector4 c in _corners){
+                    // if all negative return False
+                    if (Vector4.Dot(p, c) < 0){
+                        i++;
+                    }
                 }
+                if (i == 8){ return false;}
             }
-            return false;
+            return true;
         }
     }
     public class TerrainRenderer {
@@ -171,7 +200,8 @@ namespace xshazwar
             Vector2 pos = new Vector2(camera.gameObject.transform.position.x, camera.gameObject.transform.position.z);
             int c = 0;
             // reuse these 8 vectors for all camera calcs
-            Vector3[] corners = new Vector3[8]; 
+            Vector4[] corners = new Vector4[8]; 
+            Vector4[] planes = OffsetData.frustrumFromMatrix(camera.cullingMatrix);
             for (int idx = 0; idx < terrainCount; idx ++){
                 UnityEngine.Profiling.Profiler.BeginSample("ReadArray");
                 OffsetData d = offset_data_arr[idx];
@@ -184,7 +214,7 @@ namespace xshazwar
                 }
                 UnityEngine.Profiling.Profiler.EndSample();
                 UnityEngine.Profiling.Profiler.BeginSample("CullCameraFoV");
-                if(!d.visibleIn(camera, tileSize, height, ref corners)){
+                if(!d.visibleIn(ref planes, tileSize, height, ref corners)){
                     UnityEngine.Profiling.Profiler.EndSample();
                     continue;
                 }
