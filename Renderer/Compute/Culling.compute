@@ -47,11 +47,11 @@ void ScorePlane (uint3 id : SV_DispatchThreadID)
     scores[6*id.x + id.y] = (c == 8) ? 0: 1;
 }
 
-// offset, planes
+// offset
 [numthreads(32,1,1)]
 void SetFOV (uint3 id : SV_DispatchThreadID)
 {
-    if(id.x >= MAX_OFFSET){
+    if(id.x > MAX_OFFSET){
         return;
     }
     OffsetData d = _Offset[id.x];
@@ -63,10 +63,10 @@ void SetFOV (uint3 id : SV_DispatchThreadID)
     }
     FOV[id.x].x = id.x;
     // cull out of fov
-    // FOV[id.x].y = score == 6 ? 1 : 0;
+    FOV[id.x].y = score == 6 ? 1 : -1;
     // cull sunken while we're here
-    // FOV[id.x].y = d.y < -1 ? 0 : FOV[id.x].y;
-    FOV[id.x].y = d.y < 0 ? -1 : 1;
+    // FOV[id.x].y = d.y < 0 ? -1 : FOV[id.x].y;
+    // FOV[id.x].y = d.y < 0 ? -1 : 1;
     // FOV[id.x].y = 1;
 }
 
