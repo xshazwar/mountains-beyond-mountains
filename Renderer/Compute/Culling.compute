@@ -11,12 +11,12 @@ struct OffsetData {
     float x;
     float y;
     float z;
-    float id;
 };
 
-uniform StructuredBuffer<float4> planes;
+uniform RWStructuredBuffer<float4> planes;
 uniform RWStructuredBuffer<float> scores;
-uniform StructuredBuffer<OffsetData> _Offset;
+// THIS MUST BE RW, not because we write it here, but because it's modified elsewhere
+uniform RWStructuredBuffer<OffsetData> _Offset;
 uniform RWStructuredBuffer<float2> FOV;
 
 float pointNotInPlane(in float4 pt, in float4 plane){
@@ -25,7 +25,7 @@ float pointNotInPlane(in float4 pt, in float4 plane){
 }
 
 // offset, planes
-[numthreads(64,6,1)]
+[numthreads(32,6,1)]
 void ScorePlane (uint3 id : SV_DispatchThreadID)
 {
     if(id.x > asuint(MAX_OFFSET)){
@@ -48,10 +48,10 @@ void ScorePlane (uint3 id : SV_DispatchThreadID)
 }
 
 // offset, planes
-[numthreads(64,1,1)]
+[numthreads(32,1,1)]
 void SetFOV (uint3 id : SV_DispatchThreadID)
 {
-    if(id.x > asuint(MAX_OFFSET)){
+    if(id.x >= MAX_OFFSET){
         return;
     }
     OffsetData d = _Offset[id.x];
@@ -62,6 +62,11 @@ void SetFOV (uint3 id : SV_DispatchThreadID)
         score += scores[start + i];
     }
     FOV[id.x].x = id.x;
-    FOV[id.x].y = score == 6 ? 1 : 0;
+    // cull out of fov
+    // FOV[id.x].y = score == 6 ? 1 : 0;
+    // cull sunken while we're here
+    // FOV[id.x].y = d.y < -1 ? 0 : FOV[id.x].y;
+    FOV[id.x].y = d.y < 0 ? -1 : 1;
+    // FOV[id.x].y = 1;
 }
 
