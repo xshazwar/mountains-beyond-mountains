@@ -21,7 +21,7 @@ BEGIN_CBUFFER
    float _DownScale;
    uniform StructuredBuffer<OffsetData> _Offset;
    uniform StructuredBuffer<float> _TerrainValues;
-   uniform StructuredBuffer<int> _FOV;
+   uniform StructuredBuffer<float2> _FOV;
 END_CBUFFER
 
 // if you are writing a subshader, any defines that should be set on the main
@@ -55,7 +55,7 @@ BEGIN_CODE
 
    void ConfigureProcedural () {
       #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
-         TILEIDX = _FOV[unity_InstanceID];
+         TILEIDX = _FOV[unity_InstanceID].x;
          _offset = _Offset[TILEIDX];
          MESH_RATIO = _Mesh_Size / _Mesh_Res;
          FMR = ((int) _Mesh_Res) + 2 * ((int)_MeshOverlap);

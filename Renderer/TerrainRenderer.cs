@@ -8,6 +8,21 @@ using UnityEngine.Rendering;
 
 namespace xshazwar
 {
+    
+    public struct FOV{
+        public float id;
+        public float active;
+
+        public FOV(float id, float active){
+            this.id = id;
+            this.active = active;
+        }
+
+        public static int stride(){
+            return 2 * 4; // 5 * 4bytes float
+        }
+    }
+    
     public struct OffsetData {
         
         public float x;
@@ -23,7 +38,7 @@ namespace xshazwar
 
 
         public static int stride(){
-            return 3 * 4; // 5 * 4bytes float
+            return 3 * 4; // 3 * 4bytes float
         }
 
         public static void frustrumFromMatrix(Matrix4x4 mat, ref Vector4[] planes){
@@ -101,6 +116,12 @@ namespace xshazwar
         public float tileSize = 1000f;
         private int range;
 
+        // Culling Compute Shader
+        public static string cullingShaderName = "Culling";
+        ComputeShader cullShader;
+        int cullShader_stageScore;
+        int cullShader_stageSetFOV;
+        int threadCount = 0;
 
         // Buffers
 
@@ -111,7 +132,7 @@ namespace xshazwar
         // CPU Side Buffer Sources
         OffsetData[] offset_data_arr;
         float[] all_heights_arr;
-        int[] fov_array;
+        FOV[] fov_array;
 
         public Material material;
         public MaterialPropertyBlock materialProps;
@@ -142,9 +163,10 @@ namespace xshazwar
             bounds = new Bounds(center, extent);
         }
 
-        public TerrainRenderer(Material _material, int range, int downscale, int resolution, int overlap, float _tileSize, float _height, int internalGap = 0, Color? color = null){
+        public TerrainRenderer(ComputeShader _cpt, Material _material, int range, int downscale, int resolution, int overlap, float _tileSize, float _height, int internalGap = 0, Color? color = null){
             tileSize = _tileSize;
             height = _height;
+            this.cullShader = _cpt;
             material = _material;
             meshOverlap = overlap;
             meshDownscale = downscale;
@@ -178,8 +200,8 @@ namespace xshazwar
                 offset_data_arr[i].y_offset = -100000f;
             }
 
-            fovBuffer = new ComputeBuffer(terrainCount, 4);
-            fov_array = new int[terrainCount];
+            fovBuffer = new ComputeBuffer(terrainCount, FOV.stride());
+            fov_array = new FOV[terrainCount];
 
             float ws_bound = (range) * tileSize;
             materialProps = new MaterialPropertyBlock();
@@ -194,6 +216,13 @@ namespace xshazwar
             materialProps.SetBuffer("_Offset", offsetBuffer);
             materialProps.SetBuffer("_TerrainValues", terrainBuffer);
             materialProps.SetBuffer("_FOV", fovBuffer);
+            
+            cullShader_stageScore = cullShader.FindKernel("ScorePlane");
+            cullShader_stageSetFOV = cullShader.FindKernel("SetFOV");
+            threadCount =  (int) Math.Ceiling(terrainCount / 64.0f);
+            cullShader.SetFloat("MAX_OFFSET", terrainCount * 1f);
+            cullShader.SetFloat("TS", tileSize * 1f);
+            cullShader.SetFloat("HEIGHT", height * 1f);
 
             Debug.Log("GPUTerrain Ready");
             isReady = true;
@@ -215,7 +244,7 @@ namespace xshazwar
                 }
                 UnityEngine.Profiling.Profiler.EndSample();
                 UnityEngine.Profiling.Profiler.BeginSample("Assign FoV Array");
-                fov_array[instanceCount] = idx;
+                fov_array[instanceCount] = new FOV(idx * 1f, 1f);
                 instanceCount += 1;
                 UnityEngine.Profiling.Profiler.EndSample();
             }

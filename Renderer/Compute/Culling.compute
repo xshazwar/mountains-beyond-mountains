@@ -1,0 +1,67 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ScorePlane
+#pragma kernel SetFOV
+
+
+float MAX_OFFSET;
+float TS; // tilesize;
+float HEIGHT; // tileheight
+
+struct OffsetData {
+    float x;
+    float y;
+    float z;
+    float id;
+};
+
+uniform StructuredBuffer<float4> planes;
+uniform RWStructuredBuffer<float> scores;
+uniform StructuredBuffer<OffsetData> _Offset;
+uniform RWStructuredBuffer<float2> FOV;
+
+float pointNotInPlane(in float4 pt, in float4 plane){
+    // 1 if "behind plane", 0 if infront of plane
+    return dot(plane, pt) < 0 ? 1 : 0;
+}
+
+// offset, planes
+[numthreads(64,6,1)]
+void ScorePlane (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x > asuint(MAX_OFFSET)){
+        return;
+    }
+    OffsetData d = _Offset[id.x];
+    float c = 0;
+    //bottom
+    c += pointNotInPlane(float4(d.x, 0, d.z, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x + TS, 0, d.z, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x + TS, 0, d.z + TS, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x, 0, d.z + TS, 1), planes[id.y]);
+    //top
+    c += pointNotInPlane(float4(d.x, HEIGHT, d.z, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x + TS, HEIGHT, d.z, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x + TS, HEIGHT, d.z + TS, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x, HEIGHT, d.z + TS, 1), planes[id.y]);
+
+    scores[6*id.x + id.y] = (c == 8) ? 0: 1;
+}
+
+// offset, planes
+[numthreads(64,1,1)]
+void SetFOV (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x > asuint(MAX_OFFSET)){
+        return;
+    }
+    OffsetData d = _Offset[id.x];
+    uint score = 0;
+    uint start = id.x * 6;
+    [unroll]
+    for ( uint i = 0; i < 6; i++ ){
+        score += scores[start + i];
+    }
+    FOV[id.x].x = id.x;
+    FOV[id.x].y = score == 6 ? 1 : 0;
+}
+
