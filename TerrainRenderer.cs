@@ -28,8 +28,8 @@ namespace xshazwar
             return 4 * 4; // 5 * 4bytes float
         }
 
-        public static Vector4[] frustrumFromMatrix(Matrix4x4 mat){
-            Vector4[] planes = new Vector4[6];
+        public static void frustrumFromMatrix(Matrix4x4 mat, ref Vector4[] planes){
+            // Vector4[] planes = new Vector4[6];
             //left
             planes[0] = new Vector4(mat.m30 + mat.m00, mat.m31 + mat.m01, mat.m32 + mat.m02, mat.m33 + mat.m03);
             // right
@@ -47,7 +47,6 @@ namespace xshazwar
             {
                 planes[i].Normalize();
             }
-            return planes;
         }
 
         public void AssignElement(ref Vector4 v, float x, float y, float z, float w){
@@ -124,6 +123,11 @@ namespace xshazwar
         private ConcurrentQueue<int> offsetUpdates = new ConcurrentQueue<int>();
         ConcurrentQueue<int> billboardIds = new ConcurrentQueue<int>();
 
+        // avoid gcalloc for culling
+        private Vector4[] corners;
+        private Vector4[] planes;
+        private int instanceCount;
+
         public bool isReady = false;
 
         private int minAvailableTiles = 10000;
@@ -158,6 +162,8 @@ namespace xshazwar
             }
             terrainBufferSize = terrainCount * tileHeightElements;
             setBounds();
+            corners = new Vector4[8];
+            planes = new Vector4[6];
             terrainBuffer = new ComputeBuffer(terrainBufferSize, 4);
             all_heights_arr = new float[terrainBufferSize];
             for (int i = 0; i < terrainBufferSize; i ++){
@@ -196,22 +202,12 @@ namespace xshazwar
 
         public int setCullingGetInstanceCount(Camera camera){
             UnityEngine.Profiling.Profiler.BeginSample("CullGPUTiles");
-            float maxRange = (float)(range + 2) * tileSize;
-            Vector2 pos = new Vector2(camera.gameObject.transform.position.x, camera.gameObject.transform.position.z);
-            int c = 0;
-            // reuse these 8 vectors for all camera calcs
-            Vector4[] corners = new Vector4[8]; 
-            Vector4[] planes = OffsetData.frustrumFromMatrix(camera.cullingMatrix);
+            instanceCount = 0;
+            // reuse corners and planes for all camera calcs
+            OffsetData.frustrumFromMatrix(camera.cullingMatrix, ref planes);
             for (int idx = 0; idx < terrainCount; idx ++){
                 UnityEngine.Profiling.Profiler.BeginSample("ReadArray");
                 OffsetData d = offset_data_arr[idx];
-                UnityEngine.Profiling.Profiler.EndSample();
-                // cull sunken
-                UnityEngine.Profiling.Profiler.BeginSample("CullSunken");
-                if (d.y_offset < -1f){
-                    UnityEngine.Profiling.Profiler.EndSample();
-                    continue;
-                }
                 UnityEngine.Profiling.Profiler.EndSample();
                 UnityEngine.Profiling.Profiler.BeginSample("CullCameraFoV");
                 if(!d.visibleIn(ref planes, tileSize, height, ref corners)){
@@ -220,15 +216,15 @@ namespace xshazwar
                 }
                 UnityEngine.Profiling.Profiler.EndSample();
                 UnityEngine.Profiling.Profiler.BeginSample("Assign FoV Array");
-                fov_array[c] = idx;
-                c += 1;
+                fov_array[instanceCount] = idx;
+                instanceCount += 1;
                 UnityEngine.Profiling.Profiler.EndSample();
             }
             UnityEngine.Profiling.Profiler.EndSample();
             UnityEngine.Profiling.Profiler.BeginSample("SetLiveGPUTiles");
-            fovBuffer.SetData(fov_array, 0, 0, c);
+            fovBuffer.SetData(fov_array, 0, 0, instanceCount);
             UnityEngine.Profiling.Profiler.EndSample();
-            return c;
+            return instanceCount;
         }
 
         public void setBillboardPosition(int id, float x_pos, float z_pos, float y_off, bool waitForHeight=true){
@@ -263,7 +259,7 @@ namespace xshazwar
 
         public void hideBillboard(int id){
             // remove from view but do not deallocate
-            setBillboardPosition(id, offset_data_arr[id].x, offset_data_arr[id].z, -10000f, false);
+            setBillboardPosition(id, offset_data_arr[id].x, offset_data_arr[id].z, -1000000f, false);
         }
 
         public void unhideBillboard(int id){

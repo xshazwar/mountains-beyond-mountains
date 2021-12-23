@@ -51,15 +51,11 @@ namespace xshazwar.MM2 {
       public int textureIndex;
       
 
-    //   place into ,icrosplat_terrain_body.txt
-    //   MicroSplatLayer SurfImpl
-    // #if _MM2HEIGHT
-    //     i.worldPos.y = MapMagicDisplacement(i.worldPos);
-    //     i.worldHeight = i.worldPos.y;
-    // #endif      
+      //   requires placement into core module @ microsplat_terrain_body.txt && microsplat_terrain_core_vertex.txt
+      //   see /Fragments/ _func for details
+ 
 
       GUIContent CMM2Mode = new GUIContent("MapMagic2", "Procedural Height Mapping");
-      // Can we template these somehow?
       static Dictionary<DefineFeature, string> sFeatureNames = new Dictionary<DefineFeature, string>();
       public static string GetFeatureName(DefineFeature feature)
       {
@@ -102,6 +98,7 @@ namespace xshazwar.MM2 {
          {
             if (MicroSplatUtilities.DrawRollup("MM2"))
             {
+                  //TODO add some options to the shader generation
                   if (mat.HasProperty("_MMData") && mm2Mode != MM2Mode.None)
                   {
                     //  Vector4 vals = shaderGUI.FindProp("_AlphaData", props).vectorValue;
