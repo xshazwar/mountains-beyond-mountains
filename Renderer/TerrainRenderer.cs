@@ -22,6 +22,10 @@ namespace xshazwar
         public static int stride(){
             return 2 * 4; // 5 * 4bytes float
         }
+
+        public static int Compare(FOV a, FOV b){
+            return -1 * Comparer<float>.Default.Compare(a.active, b.active);
+        }
     }
     
     public struct OffsetData {
@@ -256,47 +260,25 @@ namespace xshazwar
             cullShader.Dispatch(cullShader_stageSetFOV, threadCount, 1, 1);
             UnityEngine.Profiling.Profiler.EndSample();
             
-            UnityEngine.Profiling.Profiler.BeginSample("GetData / CPUSort");
-            
+            UnityEngine.Profiling.Profiler.BeginSample("Get FoV buffer from GPU");
             fovBuffer.GetData(fov_array, 0, 0, terrainCount);
-            fov_array = fov_array.OrderBy(x => -x.active).ToArray();
-            Array.Sort<FOV>(fov_array, (a, b) => a.active <= b.active ? 0: -1);
-            int c0 = fov_array.Where(i => i.active > 0).Count();
-            fovBuffer.SetData(fov_array, 0, 0, c0);
             UnityEngine.Profiling.Profiler.EndSample();
+            UnityEngine.Profiling.Profiler.BeginSample("sort / count");
+            Array.Sort<FOV>(
+                fov_array, (a, b) => FOV.Compare(a, b));
+            
+            while(instanceCount < terrainCount){
+                if (fov_array[instanceCount].active < 0f){
+                    break;
+                }
+                instanceCount ++;
+            }
+            UnityEngine.Profiling.Profiler.EndSample();
+            UnityEngine.Profiling.Profiler.BeginSample("set buffer");
+            fovBuffer.SetData(fov_array, 0, 0, instanceCount);
+            UnityEngine.Profiling.Profiler.EndSample();
+            return instanceCount;
 
-            // for (int idx = 0; idx < terrainCount; idx ++){
-            //     UnityEngine.Profiling.Profiler.BeginSample("ReadArray");
-            //     OffsetData d = offset_data_arr[idx];
-            //     UnityEngine.Profiling.Profiler.EndSample();
-            //     UnityEngine.Profiling.Profiler.BeginSample("CullCameraFoV");
-            //     if(!d.visibleIn(ref planes, tileSize, height, ref corners)){
-            //         UnityEngine.Profiling.Profiler.EndSample();
-            //         continue;
-            //     }
-            //     UnityEngine.Profiling.Profiler.EndSample();
-            //     UnityEngine.Profiling.Profiler.BeginSample("Cull Sunk");
-            //     // if(d.y_offset < -1f){
-            //     //     UnityEngine.Profiling.Profiler.EndSample();
-            //     //     continue;
-            //     // }
-            //     UnityEngine.Profiling.Profiler.EndSample();
-            //     UnityEngine.Profiling.Profiler.BeginSample("Assign FoV Array");
-            //     // fov_array[instanceCount] = new FOV(idx * 1f, 1f);
-            //     instanceCount += 1;
-            //     UnityEngine.Profiling.Profiler.EndSample();
-            // }
-            // UnityEngine.Profiling.Profiler.EndSample();
-            // UnityEngine.Profiling.Profiler.BeginSample("SetLiveGPUTiles");
-            // fovBuffer.SetData(fov_array, 0, 0, instanceCount);
-            // UnityEngine.Profiling.Profiler.EndSample();
-            // if(c0 != instanceCount){
-            //     Debug.Log($"missmatch... {c0} != {instanceCount}");
-            // }else{
-            //     Debug.Log($"fine!? {c0}");
-            // }
-            // return instanceCount;
-            return c0;
         }
 
         public void setBillboardPosition(int id, float x_pos, float z_pos, float y_off, bool waitForHeight=true){

@@ -9,7 +9,7 @@ float HEIGHT; // tileheight
 
 struct OffsetData {
     float x;
-    float y;
+    float offset;
     float z;
 };
 
@@ -28,9 +28,6 @@ float pointNotInPlane(in float4 pt, in float4 plane){
 [numthreads(32,6,1)]
 void ScorePlane (uint3 id : SV_DispatchThreadID)
 {
-    if(id.x > asuint(MAX_OFFSET)){
-        return;
-    }
     OffsetData d = _Offset[id.x];
     float c = 0;
     //bottom
@@ -51,9 +48,6 @@ void ScorePlane (uint3 id : SV_DispatchThreadID)
 [numthreads(32,1,1)]
 void SetFOV (uint3 id : SV_DispatchThreadID)
 {
-    if(id.x > MAX_OFFSET){
-        return;
-    }
     OffsetData d = _Offset[id.x];
     uint score = 0;
     uint start = id.x * 6;
@@ -63,10 +57,9 @@ void SetFOV (uint3 id : SV_DispatchThreadID)
     }
     FOV[id.x].x = id.x;
     // cull out of fov
-    FOV[id.x].y = score == 6 ? 1 : -1;
+    float inView = score == 6 ? 1 : -1;
+    float notSunken = d.offset > -100 ? 1 : -1;
     // cull sunken while we're here
-    // FOV[id.x].y = d.y < 0 ? -1 : FOV[id.x].y;
-    // FOV[id.x].y = d.y < 0 ? -1 : 1;
-    // FOV[id.x].y = 1;
+    FOV[id.x].y = (inView + notSunken) > 0 ? 1: -1;
 }
 
