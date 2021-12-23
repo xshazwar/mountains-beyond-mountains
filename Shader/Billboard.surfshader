@@ -36,7 +36,6 @@ BEGIN_DEFINES
       // so this will be either 0 or -10000
       float y;
       float z;
-      float id;
    };
 
 END_DEFINES
@@ -47,6 +46,7 @@ END_DEFINES
 BEGIN_CODE
 
    OffsetData _offset;
+   int TILEIDX;
    float MESH_RATIO;
    int FMR;
    int FMR_SQR;
@@ -55,8 +55,8 @@ BEGIN_CODE
 
    void ConfigureProcedural () {
       #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
-         int idx = _FOV[unity_InstanceID];
-         _offset = _Offset[idx];
+         TILEIDX = _FOV[unity_InstanceID];
+         _offset = _Offset[TILEIDX];
          MESH_RATIO = _Mesh_Size / _Mesh_Res;
          FMR = ((int) _Mesh_Res) + 2 * ((int)_MeshOverlap);
          FMR_SQR = FMR * FMR;
@@ -102,19 +102,14 @@ BEGIN_CODE
 
    void ModifyVertex(inout VertexData v, inout ExtraV2F d){
    #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
-		// only do it in this stage if we're not tessellated, otherwise lets
-		// do it in the tessellated stage for better resolution
-      int idx = HeightIdx((int) _offset.id, v.vertex.x, v.vertex.z);
-      ApplyNormal(v, v.vertex.x, v.vertex.z, (int) _offset.id);
-      [flatten] if (_offset.y < -5000){
-         v.vertex.y = 0;
-         v.vertex.x = 0;
-         v.vertex.z = 0;
-      } else {
-         v.vertex.y = clamp((_TerrainValues[idx] * _Height) + _offset.y, 0 , .999 * _Height);
-         v.vertex.x = (v.vertex.x * MESH_RATIO) + _offset.x - ( _MeshOverlap * MESH_RATIO);
-         v.vertex.z = (v.vertex.z * MESH_RATIO) + _offset.z - (_MeshOverlap * MESH_RATIO);   
-      }
+      ApplyNormal(v, v.vertex.x, v.vertex.z, TILEIDX);
+      v.vertex.y = clamp(
+         (_TerrainValues[HeightIdx(TILEIDX, v.vertex.x, v.vertex.z)] * _Height) + _offset.y,
+         0 ,
+         .999 * _Height
+      );
+      v.vertex.x = (v.vertex.x * MESH_RATIO) + _offset.x - ( _MeshOverlap * MESH_RATIO);
+      v.vertex.z = (v.vertex.z * MESH_RATIO) + _offset.z - (_MeshOverlap * MESH_RATIO);
    #endif
 	}
 
@@ -123,7 +118,7 @@ BEGIN_CODE
       o.Albedo = _Tint.rgb;
       o.Alpha = 1; //_Tint.a;
    #else
-      o.Albedo = (0,0,0);
+      o.Albedo = (255,0,255);
    #endif
 	}
 

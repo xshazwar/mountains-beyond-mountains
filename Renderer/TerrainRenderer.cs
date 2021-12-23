@@ -13,19 +13,17 @@ namespace xshazwar
         public float x;
         public float y_offset;
         public float z;
-        public float id;
         
 
-        public OffsetData(int id, float x, float z, float off){
-            this.id = (float) id;
+        public OffsetData(float x, float z, float off){
             this.x = x;
-            this.z = z;
             this.y_offset = off;
+            this.z = z;
         }
 
 
         public static int stride(){
-            return 4 * 4; // 5 * 4bytes float
+            return 3 * 4; // 5 * 4bytes float
         }
 
         public static void frustrumFromMatrix(Matrix4x4 mat, ref Vector4[] planes){
@@ -60,6 +58,7 @@ namespace xshazwar
             AssignElement(ref _corners[1], this.x + tileSize, 0f, this.z, 1f);
             AssignElement(ref _corners[2], this.x + tileSize, 0f, this.z + tileSize, 1f);
             AssignElement(ref _corners[3], this.x , 0f, this.z + tileSize, 1f);
+
             AssignElement(ref _corners[4], this.x, height, this.z, 1f);
             AssignElement(ref _corners[5], this.x + tileSize, height, this.z, 1f);
             AssignElement(ref _corners[6], this.x + tileSize, height, this.z + tileSize, 1f);
@@ -236,7 +235,7 @@ namespace xshazwar
             // TODO Find a better draw bounds solution
             // this changes the damned center as well...
             // setBounds(center: new Vector3(x_pos, 0f, z_pos));
-            offset_data_arr[id] = new OffsetData(id, x_pos, z_pos, y_off); //start sunken
+            offset_data_arr[id] = new OffsetData(x_pos, z_pos, y_off);
             if (!waitForHeight){
                 offsetUpdates.Enqueue(id);
             }
