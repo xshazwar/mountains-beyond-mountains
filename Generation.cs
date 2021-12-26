@@ -17,6 +17,8 @@ using MapMagic.Nodes;
 using MapMagic.Nodes.MatrixGenerators;
 using MapMagic.Terrains;
 
+using xshazwar.Renderer;
+
 namespace xshazwar {
         
         public interface IHandlePosition
