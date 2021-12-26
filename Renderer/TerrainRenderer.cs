@@ -261,6 +261,7 @@ namespace xshazwar
             UnityEngine.Profiling.Profiler.EndSample();
             
             UnityEngine.Profiling.Profiler.BeginSample("Get FoV buffer from GPU");
+            // this is the only expensive operation
             fovBuffer.GetData(fov_array, 0, 0, terrainCount);
             UnityEngine.Profiling.Profiler.EndSample();
             UnityEngine.Profiling.Profiler.BeginSample("sort / count");
