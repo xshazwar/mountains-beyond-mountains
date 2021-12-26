@@ -17,7 +17,7 @@ namespace xshazwar.MergeSort {
 				y = (length - 1) / MAX_DIM_THREADS + 1;
 				z = 1;
 			}
-			//Debug.LogFormat("WorkSize {0}x{1}x{2}", x, y, z);
+			// Debug.LogFormat("WorkSize {0}x{1}x{2}", x, y, z);
 		}
 		public static int AlignBufferSize(int length) {
 			return ((length - 1) / GROUP_SIZE + 1) * GROUP_SIZE;

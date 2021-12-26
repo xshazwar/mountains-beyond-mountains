@@ -7,4 +7,4 @@
    float _DownScale;
    uniform StructuredBuffer<float3> _Offset;
    uniform StructuredBuffer<float> _TerrainValues;
-   uniform StructuredBuffer<float2> _FOV;
+   uniform StructuredBuffer<uint> _FOV;

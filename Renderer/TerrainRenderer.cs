@@ -26,24 +26,17 @@ namespace xshazwar.Renderer
 
         // Culling Compute Shader
         GPUCulling gpuCull;
-        // public static string cullingShaderName = "Culling";
-        // ComputeShader cullShader;
-        // int cullShader_stageScore;
-        // int cullShader_stageSetFOV;
-        // int threadCount = 0;
 
         // Buffers
 
         public ComputeBuffer fovBuffer;
         public ComputeBuffer offsetBuffer;
         public ComputeBuffer terrainBuffer;
-        // public ComputeBuffer cullingScoresBuffer;
-        // public ComputeBuffer cullingPlanesBuffer;
 
         // CPU Side Buffer Sources
         OffsetData[] offset_data_arr;
         float[] all_heights_arr;
-        FOV[] fov_array;
+        // float[] fov_array;
 
         public Material material;
         public MaterialPropertyBlock materialProps;
@@ -53,11 +46,6 @@ namespace xshazwar.Renderer
         private ConcurrentQueue<int> heightsUpdates = new ConcurrentQueue<int>();
         private ConcurrentQueue<int> offsetUpdates = new ConcurrentQueue<int>();
         ConcurrentQueue<int> billboardIds = new ConcurrentQueue<int>();
-
-        // avoid gcalloc for culling
-        // private Vector4[] corners;
-        // private Vector4[] planes;
-        // private int instanceCount;
 
         public bool isReady = false;
 
@@ -77,7 +65,6 @@ namespace xshazwar.Renderer
         public TerrainRenderer(ComputeShader _cpt, Material _material, int range, int downscale, int resolution, int overlap, float _tileSize, float _height, int internalGap = 0, Color? color = null){
             tileSize = _tileSize;
             height = _height;
-            // this.cullShader = _cpt;
             material = _material;
             meshOverlap = overlap;
             meshDownscale = downscale;
@@ -94,8 +81,6 @@ namespace xshazwar.Renderer
             }
             terrainBufferSize = terrainCount * tileHeightElements;
             setBounds();
-            // corners = new Vector4[8];
-            // planes = new Vector4[6];
             terrainBuffer = new ComputeBuffer(terrainBufferSize, 4);
             all_heights_arr = new float[terrainBufferSize];
             for (int i = 0; i < terrainBufferSize; i ++){
@@ -111,10 +96,18 @@ namespace xshazwar.Renderer
                 offset_data_arr[i].y_offset = -10000f;
             }
 
-            fovBuffer = new ComputeBuffer(terrainCount, FOV.stride());
-            fov_array = new FOV[terrainCount];
+            int sortSize = 0;
+            for (int i = 2; i < terrainCount * terrainCount; i <<= 1){
+                if (i > terrainCount){
+                    sortSize = i;
+                    break;
+                }
+            }
 
-            gpuCull = new GPUCulling(_cpt, ref offsetBuffer, ref fovBuffer);
+            fovBuffer = new ComputeBuffer(sortSize, 4);
+            // fov_array = new float[terrainCount];
+
+            gpuCull = new GPUCulling(_cpt, offsetBuffer, fovBuffer, sortSize);
 
             float ws_bound = (range) * tileSize;
             materialProps = new MaterialPropertyBlock();
@@ -131,63 +124,12 @@ namespace xshazwar.Renderer
             materialProps.SetBuffer("_FOV", fovBuffer);
             
             gpuCull.init(terrainCount, tileSize, height);
-            // cullShader_stageScore = cullShader.FindKernel("ScorePlane");
-            // cullShader_stageSetFOV = cullShader.FindKernel("SetFOV");
-            // threadCount = Mathf.CeilToInt(terrainCount / 32.0f);
-            
-            // cullingScoresBuffer = new ComputeBuffer(terrainCount * 6, 4);
-            // cullingPlanesBuffer = new ComputeBuffer(6, 4 * 4);
-
-            // cullShader.SetBuffer(cullShader_stageScore, "planes", cullingPlanesBuffer);
-            // cullShader.SetBuffer(cullShader_stageScore, "scores", cullingScoresBuffer);
-            // cullShader.SetBuffer(cullShader_stageScore, "_Offset", offsetBuffer);
-            
-            // cullShader.SetBuffer(cullShader_stageSetFOV, "scores", cullingScoresBuffer);
-            // cullShader.SetBuffer(cullShader_stageSetFOV, "_Offset", offsetBuffer);
-            // cullShader.SetBuffer(cullShader_stageSetFOV, "FOV", fovBuffer);
-            // cullShader.SetFloat("MAX_OFFSET", terrainCount * 1f);
-            // cullShader.SetFloat("TS", tileSize * 1f);
-            // cullShader.SetFloat("HEIGHT", height * 1f);
-
             Debug.Log("GPUTerrain Ready");
             isReady = true;
         }
 
         public int setCullingGetInstanceCount(Camera camera){
-            return gpuCull.setCullingGetInstanceCount(camera, ref fov_array);
-            // UnityEngine.Profiling.Profiler.BeginSample("CullGPUTiles");
-            // instanceCount = 0;
-            // // reuse corners and planes for all camera calcs
-            // OffsetData.frustrumFromMatrix(camera.cullingMatrix, ref planes);
-            
-            // cullingPlanesBuffer.SetData(planes, 0, 0, 6);
-            // UnityEngine.Profiling.Profiler.BeginSample("ComputeScore");
-            // cullShader.Dispatch(cullShader_stageScore, threadCount, 1, 1);
-            // UnityEngine.Profiling.Profiler.EndSample();
-            // UnityEngine.Profiling.Profiler.BeginSample("ComputeCullFOV");
-            // cullShader.Dispatch(cullShader_stageSetFOV, threadCount, 1, 1);
-            // UnityEngine.Profiling.Profiler.EndSample();
-            
-            // UnityEngine.Profiling.Profiler.BeginSample("Get FoV buffer from GPU");
-            // // this is the only expensive operation
-            // fovBuffer.GetData(fov_array, 0, 0, terrainCount);
-            // UnityEngine.Profiling.Profiler.EndSample();
-            // UnityEngine.Profiling.Profiler.BeginSample("sort / count");
-            // Array.Sort<FOV>(
-            //     fov_array, (a, b) => FOV.Compare(a, b));
-            
-            // while(instanceCount < terrainCount){
-            //     if (fov_array[instanceCount].active < 0f){
-            //         break;
-            //     }
-            //     instanceCount ++;
-            // }
-            // UnityEngine.Profiling.Profiler.EndSample();
-            // UnityEngine.Profiling.Profiler.BeginSample("set buffer");
-            // fovBuffer.SetData(fov_array, 0, 0, instanceCount);
-            // UnityEngine.Profiling.Profiler.EndSample();
-            // return instanceCount;
-
+            return gpuCull.setCullingGetInstanceCount(camera);
         }
 
         public void setBillboardPosition(int id, float x_pos, float z_pos, float y_off, bool waitForHeight=true){
@@ -276,7 +218,7 @@ namespace xshazwar.Renderer
 
         public void flush(){
             isReady = false;
-            fov_array = null;
+            // fov_array = null;
             offset_data_arr = null;
             all_heights_arr = null;
             try{
@@ -292,8 +234,6 @@ namespace xshazwar.Renderer
             gpuCull.Destroy();
             fovBuffer = null;
             offsetBuffer = null;
-            // cullingScoresBuffer = null;
-            // cullingPlanesBuffer = null;
             heightsUpdates = null;
             offsetUpdates = null;
             Debug.Log($"{(terrainRange/2) - 1} >> {terrainRange}: currently available {billboardIds?.Count} / {terrainCount} -> low water {minAvailableTiles}");

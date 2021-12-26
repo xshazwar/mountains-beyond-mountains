@@ -1,65 +1,41 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel ScorePlane
 #pragma kernel SetFOV
+#pragma kernel BitonicSort
+#pragma kernel BitonicSortInt
+#pragma kernel InitKeys
 
+#define GROUP_SIZE 256
 
-float MAX_OFFSET;
-float TS; // tilesize;
-float HEIGHT; // tileheight
+#include "./MergeSort/BitonicMergeSort.hlsl"
+#include "./Cull/Culling.hlsl"
 
-struct OffsetData {
-    float x;
-    float offset;
-    float z;
-};
-
-uniform RWStructuredBuffer<float4> planes;
-uniform RWStructuredBuffer<float> scores;
-// THIS MUST BE RW, not because we write it here, but because it's modified elsewhere
-uniform RWStructuredBuffer<OffsetData> _Offset;
-uniform RWStructuredBuffer<float2> FOV;
-
-float pointNotInPlane(in float4 pt, in float4 plane){
-    // 1 if "behind plane", 0 if infront of plane
-    return dot(plane, pt) < 0 ? 1 : 0;
-}
 
 // offset, planes
 [numthreads(32,6,1)]
 void ScorePlane (uint3 id : SV_DispatchThreadID)
 {
-    OffsetData d = _Offset[id.x];
-    float c = 0;
-    //bottom
-    c += pointNotInPlane(float4(d.x, 0, d.z, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x + TS, 0, d.z, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x + TS, 0, d.z + TS, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x, 0, d.z + TS, 1), planes[id.y]);
-    //top
-    c += pointNotInPlane(float4(d.x, HEIGHT, d.z, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x + TS, HEIGHT, d.z, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x + TS, HEIGHT, d.z + TS, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x, HEIGHT, d.z + TS, 1), planes[id.y]);
-
-    scores[6*id.x + id.y] = (c == 8) ? 0: 1;
+    _ScorePlane(id);
 }
 
 // offset
 [numthreads(32,1,1)]
 void SetFOV (uint3 id : SV_DispatchThreadID)
 {
-    OffsetData d = _Offset[id.x];
-    uint score = 0;
-    uint start = id.x * 6;
-    [unroll]
-    for ( uint i = 0; i < 6; i++ ){
-        score += scores[start + i];
-    }
-    FOV[id.x].x = id.x;
-    // cull out of fov
-    float inView = score == 6 ? 1 : -1;
-    float notSunken = d.offset > -100 ? 1 : -1;
-    // cull sunken while we're here
-    FOV[id.x].y = (inView + notSunken) > 0 ? 1: -1;
+    _SetFOV(id);
 }
 
+[numthreads(GROUP_SIZE,1,1)]
+void BitonicSort(uint3 id : SV_DispatchThreadID) {
+    _BitonicSort(id);
+}
+
+[numthreads(GROUP_SIZE,1,1)]
+void BitonicSortInt(uint3 id : SV_DispatchThreadID) {
+    _BitonicSortInt(id);
+}
+
+[numthreads(GROUP_SIZE,1,1)]
+void InitKeys(uint3 id : SV_DispatchThreadID) {
+    _InitKeys(id);
+}

@@ -8,23 +8,23 @@ using UnityEngine;
 namespace xshazwar.Renderer
 {
     
-    public struct FOV{
-        public float id;
-        public float active;
+    // public struct FOV{
+    //     public float id;
+    //     public float active;
 
-        public FOV(float id, float active){
-            this.id = id;
-            this.active = -1f;
-        }
+    //     public FOV(float id, float active){
+    //         this.id = id;
+    //         this.active = -1f;
+    //     }
 
-        public static int stride(){
-            return 2 * 4; // 5 * 4bytes float
-        }
+    //     public static int stride(){
+    //         return 2 * 4; // 5 * 4bytes float
+    //     }
 
-        public static int Compare(FOV a, FOV b){
-            return -1 * Comparer<float>.Default.Compare(a.active, b.active);
-        }
-    }
+    //     public static int Compare(FOV a, FOV b){
+    //         return -1 * Comparer<float>.Default.Compare(a.active, b.active);
+    //     }
+    // }
     
     public struct OffsetData {
         

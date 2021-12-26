@@ -1,19 +1,14 @@
-﻿#define GROUP_SIZE 256
-#define MAX_DIM_GROUPS 1024
+﻿#define MAX_DIM_GROUPS 1024
 #define MAX_DIM_THREADS (GROUP_SIZE * MAX_DIM_GROUPS)
-#pragma kernel BitonicSort
-#pragma kernel BitonicSortInt
-#pragma kernel InitKeys
 
 int block;
 int dim;
 uint count;
 RWStructuredBuffer<uint> Keys;
-StructuredBuffer<float> Values;
+RWStructuredBuffer<float> Values;
 StructuredBuffer<int> IntValues;
 
-[numthreads(GROUP_SIZE,1,1)]
-void BitonicSort(uint3 id : SV_DispatchThreadID) {
+void _BitonicSort(uint3 id : SV_DispatchThreadID) {
 	uint i = id.x + id.y * MAX_DIM_THREADS;
 	uint j = i^block;
 	
@@ -31,8 +26,8 @@ void BitonicSort(uint3 id : SV_DispatchThreadID) {
 		Keys[j] = key_i;
 	}
 }
-[numthreads(GROUP_SIZE,1,1)]
-void BitonicSortInt(uint3 id : SV_DispatchThreadID) {
+
+void _BitonicSortInt(uint3 id : SV_DispatchThreadID) {
 	uint i = id.x + id.y * MAX_DIM_THREADS;
 	uint j = i^block;
 	
@@ -50,8 +45,8 @@ void BitonicSortInt(uint3 id : SV_DispatchThreadID) {
 		Keys[j] = key_i;
 	}
 }
-[numthreads(GROUP_SIZE,1,1)]
-void InitKeys(uint3 id : SV_DispatchThreadID) {
+
+void _InitKeys(uint3 id : SV_DispatchThreadID) {
 	uint i = id.x + id.y * MAX_DIM_THREADS;
 	if (i < count)
 		Keys[i] = i;
