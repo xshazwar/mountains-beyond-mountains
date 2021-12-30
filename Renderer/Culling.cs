@@ -13,6 +13,7 @@ namespace xshazwar.Renderer {
         ComputeBuffer cullingPlanesBuffer;
         ComputeBuffer cullingCornerScoresBuffer;
         ComputeBuffer cullingFOVScoresBuffer;
+        ComputeBuffer scanReduceBuffer;
         ComputeBuffer offsetBuffer;
         ComputeBuffer fovBuffer;
 
@@ -25,8 +26,13 @@ namespace xshazwar.Renderer {
         ComputeShader cullShader;
         int cullShader_stageScore;
         int cullShader_stageSetFOV;
+        int scanShader_stageScan;
+        int scanShader_stageReduce;
         int threadCount = 0;
         int sortSize = 0;
+        int scanGroupSize = 32;
+        int scanThreadSize;
+        int scanReductions;
         int instanceCount;
 
         float[] fovScores;
@@ -45,6 +51,8 @@ namespace xshazwar.Renderer {
             fovScores = new float[terrainCount];
             cullShader_stageScore = cullShader.FindKernel("ScorePlane");
             cullShader_stageSetFOV = cullShader.FindKernel("SetFOV");
+            scanShader_stageScan = cullShader.FindKernel("Scan");
+            scanShader_stageReduce = cullShader.FindKernel("ScanReduce");
 
             threadCount = Mathf.CeilToInt(terrainCount / 32.0f);
             
@@ -61,6 +69,20 @@ namespace xshazwar.Renderer {
             cullShader.SetBuffer(cullShader_stageSetFOV, "_FOV", fovBuffer);
             cullShader.SetBuffer(cullShader_stageSetFOV, "fovscores", cullingFOVScoresBuffer);
             
+            scanThreadSize = (int) Math.Ceiling(sortSize / (float) scanGroupSize);
+            scanReductions = scanThreadSize / scanGroupSize;
+            if (scanReductions > 0){ // > size of 1024
+                Debug.Log($"reductions {scanReductions}, threads {scanThreadSize}");
+                scanReduceBuffer = new ComputeBuffer(scanReductions, 4);
+            }else{
+                scanReduceBuffer = new ComputeBuffer(1, 4);
+            }
+            cullShader.SetBuffer(scanShader_stageScan, "SCAN_VALUES", cullingFOVScoresBuffer);
+            cullShader.SetBuffer(scanShader_stageScan, "REDUCE_BLOCK", scanReduceBuffer);
+            cullShader.SetBuffer(scanShader_stageReduce, "SCAN_VALUES", cullingFOVScoresBuffer);
+            cullShader.SetBuffer(scanShader_stageReduce, "REDUCE_BLOCK", scanReduceBuffer);
+    
+
             cullShader.SetFloat("MAX_OFFSET", terrainCount * 1f);
             cullShader.SetFloat("TS", tileSize * 1f);
             cullShader.SetFloat("HEIGHT", height * 1f);
@@ -83,7 +105,13 @@ namespace xshazwar.Renderer {
             sorter.Init(fovBuffer);
             sorter.Sort(fovBuffer, cullingFOVScoresBuffer);
             UnityEngine.Profiling.Profiler.EndSample();
-            
+            // UnityEngine.Profiling.Profiler.BeginSample("ComputeScan");
+            // cullShader.Dispatch(scanShader_stageScan, scanThreadSize, 1, 1);
+            // if (scanReductions > 0){
+            //     cullShader.Dispatch(scanShader_stageReduce, scanThreadSize, 1, 1);
+            // }
+            // UnityEngine.Profiling.Profiler.EndSample();
+    
             // UnityEngine.Profiling.Profiler.EndSample();
             // UnityEngine.Profiling.Profiler.BeginSample("sort / count");
             // Array.Sort<FOV>(
@@ -104,6 +132,13 @@ namespace xshazwar.Renderer {
             // UnityEngine.Profiling.Profiler.BeginSample("set buffer");
             // fovBuffer.SetData(fov_array, 0, 0, instanceCount);
             // UnityEngine.Profiling.Profiler.EndSample();
+
+            // UnityEngine.Profiling.Profiler.BeginSample("ComputeScan");
+            // cullShader.Dispatch(scanShader_stageScan, scanThreadSize, 1, 1);
+            // if (scanReductions > 0){
+            //     cullShader.Dispatch(scanShader_stageReduce, scanThreadSize, 1, 1);
+            // }
+            // UnityEngine.Profiling.Profiler.EndSample();
             
             return instanceCount;
         }
@@ -112,7 +147,8 @@ namespace xshazwar.Renderer {
             foreach(ComputeBuffer b in new List<ComputeBuffer>{
                 cullingPlanesBuffer,
                 cullingCornerScoresBuffer,
-                cullingFOVScoresBuffer
+                cullingFOVScoresBuffer,
+                scanReduceBuffer
             }){
                 try{
                     b.Release();

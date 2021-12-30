@@ -75,7 +75,7 @@ void MapMagicDisplacement(inout VertexData v)
    ApplyNormal(v, v.vertex.x, v.vertex.z, TILEIDX);
    v.vertex.y = clamp(
       (_TerrainValues[HeightIdx(TILEIDX, v.vertex.x, v.vertex.z)] * _Height) + _offset.y,
-      0 ,
+      -10000,
       .999 * _Height
    );
    v.vertex.x = (v.vertex.x * MESH_RATIO) + _offset.x - ( _MeshOverlap * MESH_RATIO);

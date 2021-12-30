@@ -21,18 +21,21 @@ float pointNotInPlane(in float4 pt, in float4 plane){
 
 void _ScorePlane (uint3 id : SV_DispatchThreadID)
 {
+    if (id.x >= MAX_OFFSET){
+        return;
+    }
     OffsetData d = _Offset[id.x];
     float c = 0;
     //bottom
-    c += pointNotInPlane(float4(d.x, 0, d.z, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x + TS, 0, d.z, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x + TS, 0, d.z + TS, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x, 0, d.z + TS, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x, d.offset, d.z, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x + TS, d.offset, d.z, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x + TS, d.offset, d.z + TS, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x, d.offset, d.z + TS, 1), planes[id.y]);
     //top
-    c += pointNotInPlane(float4(d.x, HEIGHT, d.z, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x + TS, HEIGHT, d.z, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x + TS, HEIGHT, d.z + TS, 1), planes[id.y]);
-    c += pointNotInPlane(float4(d.x, HEIGHT, d.z + TS, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x, d.offset + HEIGHT, d.z, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x + TS, d.offset + HEIGHT, d.z, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x + TS, d.offset + HEIGHT, d.z + TS, 1), planes[id.y]);
+    c += pointNotInPlane(float4(d.x, d.offset + HEIGHT, d.z + TS, 1), planes[id.y]);
 
     scores[6*id.x + id.y] = (c == 8) ? 0: 1;
 }
@@ -40,6 +43,9 @@ void _ScorePlane (uint3 id : SV_DispatchThreadID)
 void _SetFOV (uint3 id : SV_DispatchThreadID)
 {
     uint idx = id.x;
+    if (idx >= MAX_OFFSET){
+        return;
+    }
     OffsetData d = _Offset[idx];
     uint score = 0;
     uint start = idx * 6;

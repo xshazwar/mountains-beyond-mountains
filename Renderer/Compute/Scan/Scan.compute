@@ -1,0 +1,18 @@
+#pragma kernel Scan
+#pragma kernel ReduceScan
+
+#define SCAN_GROUPSIZE 32
+
+#include "./Scan.hlsl"
+
+[numthreads(GRP,1,1)]
+void Scan (uint3 id : SV_DispatchThreadID)
+{
+    _Scan(id);
+}
+
+[numthreads(GRP,1,1)]
+void ReduceScan (uint3 id : SV_DispatchThreadID)
+{
+    _ReduceScan(id);
+}

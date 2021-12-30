@@ -1,5 +1,5 @@
 ﻿#define MAX_DIM_GROUPS 1024
-#define MAX_DIM_THREADS (GROUP_SIZE * MAX_DIM_GROUPS)
+#define MAX_DIM_THREADS (BIOTIC_GROUP_SIZE * MAX_DIM_GROUPS)
 
 int block;
 int dim;

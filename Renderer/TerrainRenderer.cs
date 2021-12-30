@@ -93,8 +93,9 @@ namespace xshazwar.Renderer
 
             offset_data_arr = new OffsetData[terrainCount];
             for(int i = 0; i < terrainCount; i++){
-                offset_data_arr[i].y_offset = -10000f;
+                offset_data_arr[i] = new OffsetData(0f, 0f, -100000f);
             }
+            offsetBuffer.SetData(offset_data_arr);
 
             int sortSize = 0;
             for (int i = 2; i < terrainCount * terrainCount; i <<= 1){
@@ -105,7 +106,8 @@ namespace xshazwar.Renderer
             }
 
             fovBuffer = new ComputeBuffer(sortSize, 4);
-            // fov_array = new float[terrainCount];
+            float[] fov_array = Enumerable.Repeat(10000f,sortSize).ToArray();
+            fovBuffer.SetData(fov_array);
 
             gpuCull = new GPUCulling(_cpt, offsetBuffer, fovBuffer, sortSize);
 

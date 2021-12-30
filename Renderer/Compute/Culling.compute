@@ -4,11 +4,15 @@
 #pragma kernel BitonicSort
 #pragma kernel BitonicSortInt
 #pragma kernel InitKeys
+#pragma kernel Scan
+#pragma kernel ScanReduce
 
-#define GROUP_SIZE 256
+#define BIOTIC_GROUP_SIZE 256
+#define SCAN_GROUPSIZE 32
 
 #include "./MergeSort/BitonicMergeSort.hlsl"
 #include "./Cull/Culling.hlsl"
+#include "./Scan/Scan.hlsl"
 
 
 // offset, planes
@@ -25,17 +29,27 @@ void SetFOV (uint3 id : SV_DispatchThreadID)
     _SetFOV(id);
 }
 
-[numthreads(GROUP_SIZE,1,1)]
+[numthreads(BIOTIC_GROUP_SIZE,1,1)]
 void BitonicSort(uint3 id : SV_DispatchThreadID) {
     _BitonicSort(id);
 }
 
-[numthreads(GROUP_SIZE,1,1)]
+[numthreads(BIOTIC_GROUP_SIZE,1,1)]
 void BitonicSortInt(uint3 id : SV_DispatchThreadID) {
     _BitonicSortInt(id);
 }
 
-[numthreads(GROUP_SIZE,1,1)]
+[numthreads(BIOTIC_GROUP_SIZE,1,1)]
 void InitKeys(uint3 id : SV_DispatchThreadID) {
     _InitKeys(id);
+}
+
+[numthreads(SCAN_GROUPSIZE,1,1)]
+void Scan (uint3 id: SV_DispatchThreadID){
+    _Scan(id);
+}
+
+[numthreads(SCAN_GROUPSIZE,1,1)]
+void ScanReduce (uint3 id: SV_DispatchThreadID){
+    _ReduceScan(id);
 }
