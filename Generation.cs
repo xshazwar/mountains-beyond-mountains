@@ -217,6 +217,7 @@ namespace xshazwar {
                     listener.OnRangeUpdated += RangeUpdate;
                     listener.OnTileActivated += TileActivated;
                     listener.OnTileRemoved += TileRemoved;
+                    avoidStartingMMTiles();
                 }
                 
                 newPosition.x = (int) Math.Floor(startingPosition.x / size);
@@ -261,7 +262,6 @@ namespace xshazwar {
                 List<TileToken> updates = new List<TileToken>();
                 while (changeQueue.TryDequeue(out tt)){
                     updates.Add(GetToken(tt));
-                    
                 }
                 foreach(TileToken update in updates){
                     try{
@@ -329,6 +329,12 @@ namespace xshazwar {
                     TileToken cull = GetToken(update);
                     cull.status = TileStatus.CULLED;
                     changeQueue.Enqueue(cull);
+                }
+            }
+
+            public void avoidStartingMMTiles(){
+                foreach(TerrainTile tile in mm.tiles.All()){
+                    TileActivated(tile.coord);
                 }
             }
             public void EnqueueTileRequest(TerrainRenderer renderer, TileToken token){
