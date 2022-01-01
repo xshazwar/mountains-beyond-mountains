@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -6,87 +7,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace xshazwar
+namespace xshazwar.Renderer
 {
-    public struct OffsetData {
-        
-        public float x;
-        public float y_offset;
-        public float z;
-        
-
-        public OffsetData(float x, float z, float off){
-            this.x = x;
-            this.y_offset = off;
-            this.z = z;
-        }
-
-
-        public static int stride(){
-            return 3 * 4; // 5 * 4bytes float
-        }
-
-        public static void frustrumFromMatrix(Matrix4x4 mat, ref Vector4[] planes){
-            // Vector4[] planes = new Vector4[6];
-            //left
-            planes[0] = new Vector4(mat.m30 + mat.m00, mat.m31 + mat.m01, mat.m32 + mat.m02, mat.m33 + mat.m03);
-            // right
-            planes[1] = new Vector4(mat.m30 - mat.m00, mat.m31 - mat.m01, mat.m32 - mat.m02, mat.m33 - mat.m03);
-            // bottom
-            planes[2] = new Vector4(mat.m30 + mat.m10, mat.m31 + mat.m11, mat.m32 + mat.m12, mat.m33 + mat.m13);
-            // top
-            planes[3] = new Vector4(mat.m30 - mat.m10, mat.m31 - mat.m11, mat.m32 - mat.m12, mat.m33 - mat.m13);
-            // near
-            planes[4] = new Vector4(mat.m30 + mat.m20, mat.m31 + mat.m21, mat.m32 + mat.m22, mat.m33 + mat.m23);
-            // far
-            planes[5] = new Vector4(mat.m30 - mat.m20, mat.m31 - mat.m21, mat.m32 - mat.m22, mat.m33 - mat.m23);
-            // normalize
-            for (uint i = 0; i < 6; i++)
-            {
-                planes[i].Normalize();
-            }
-        }
-
-        public void AssignElement(ref Vector4 v, float x, float y, float z, float w){
-            v.x = x;
-            v.y = y;
-            v.z = z;
-            v.w = w;
-        }
-        public void corners(float tileSize, float height, ref Vector4[] _corners){
-            AssignElement(ref _corners[0], this.x, 0f, this.z, 1f);
-            AssignElement(ref _corners[1], this.x + tileSize, 0f, this.z, 1f);
-            AssignElement(ref _corners[2], this.x + tileSize, 0f, this.z + tileSize, 1f);
-            AssignElement(ref _corners[3], this.x , 0f, this.z + tileSize, 1f);
-
-            AssignElement(ref _corners[4], this.x, height, this.z, 1f);
-            AssignElement(ref _corners[5], this.x + tileSize, height, this.z, 1f);
-            AssignElement(ref _corners[6], this.x + tileSize, height, this.z + tileSize, 1f);
-            AssignElement(ref _corners[7], this.x , height, this.z + tileSize, 1f);
-        }
-
-        public bool visible(Vector3 r){ // relative position
-            if ( r.x < 0f || r.x > 1f ||  r.y < 0f || r.y > 1f || r.z < 0){
-                return false;
-            }
-            return true;
-        }
-        public bool visibleIn(ref Vector4[] planes, float tileSize, float height, ref Vector4[] _corners){
-            this.corners(tileSize, height, ref _corners);
-            int i = 0;
-            foreach(Vector4 p in planes){
-                i = 0;
-                foreach (Vector4 c in _corners){
-                    // if all negative return False
-                    if (Vector4.Dot(p, c) < 0){
-                        i++;
-                    }
-                }
-                if (i == 8){ return false;}
-            }
-            return true;
-        }
-    }
+    
     public class TerrainRenderer {
 
 
@@ -101,17 +24,20 @@ namespace xshazwar
         public float tileSize = 1000f;
         private int range;
 
+        // Culling Compute Shader
+        GPUCulling gpuCull;
 
         // Buffers
 
         public ComputeBuffer fovBuffer;
         public ComputeBuffer offsetBuffer;
         public ComputeBuffer terrainBuffer;
+        public ComputeBuffer drawArgsBuffer;
 
         // CPU Side Buffer Sources
         OffsetData[] offset_data_arr;
         float[] all_heights_arr;
-        int[] fov_array;
+        // float[] fov_array;
 
         public Material material;
         public MaterialPropertyBlock materialProps;
@@ -121,11 +47,6 @@ namespace xshazwar
         private ConcurrentQueue<int> heightsUpdates = new ConcurrentQueue<int>();
         private ConcurrentQueue<int> offsetUpdates = new ConcurrentQueue<int>();
         ConcurrentQueue<int> billboardIds = new ConcurrentQueue<int>();
-
-        // avoid gcalloc for culling
-        private Vector4[] corners;
-        private Vector4[] planes;
-        private int instanceCount;
 
         public bool isReady = false;
 
@@ -142,7 +63,7 @@ namespace xshazwar
             bounds = new Bounds(center, extent);
         }
 
-        public TerrainRenderer(Material _material, int range, int downscale, int resolution, int overlap, float _tileSize, float _height, int internalGap = 0, Color? color = null){
+        public TerrainRenderer(ComputeShader _cpt, Material _material, int range, int downscale, int resolution, int overlap, float _tileSize, float _height, int internalGap = 0, Color? color = null){
             tileSize = _tileSize;
             height = _height;
             material = _material;
@@ -161,8 +82,6 @@ namespace xshazwar
             }
             terrainBufferSize = terrainCount * tileHeightElements;
             setBounds();
-            corners = new Vector4[8];
-            planes = new Vector4[6];
             terrainBuffer = new ComputeBuffer(terrainBufferSize, 4);
             all_heights_arr = new float[terrainBufferSize];
             for (int i = 0; i < terrainBufferSize; i ++){
@@ -175,11 +94,25 @@ namespace xshazwar
 
             offset_data_arr = new OffsetData[terrainCount];
             for(int i = 0; i < terrainCount; i++){
-                offset_data_arr[i].y_offset = -100000f;
+                offset_data_arr[i] = new OffsetData(0f, 0f, -100000f);
+            }
+            offsetBuffer.SetData(offset_data_arr);
+
+            int sortSize = 0;
+            for (int i = 2; i < terrainCount * terrainCount; i <<= 1){
+                if (i > terrainCount){
+                    sortSize = i;
+                    break;
+                }
             }
 
-            fovBuffer = new ComputeBuffer(terrainCount, 4);
-            fov_array = new int[terrainCount];
+            fovBuffer = new ComputeBuffer(sortSize, 4);
+            float[] fov_array = Enumerable.Repeat(0f,sortSize).ToArray();
+            fovBuffer.SetData(fov_array);
+            
+            drawArgsBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
+
+            gpuCull = new GPUCulling(_cpt, offsetBuffer, fovBuffer, drawArgsBuffer, sortSize);
 
             float ws_bound = (range) * tileSize;
             materialProps = new MaterialPropertyBlock();
@@ -194,36 +127,14 @@ namespace xshazwar
             materialProps.SetBuffer("_Offset", offsetBuffer);
             materialProps.SetBuffer("_TerrainValues", terrainBuffer);
             materialProps.SetBuffer("_FOV", fovBuffer);
-
+            
+            gpuCull.init(terrainCount, tileSize, height, mesh.GetIndexCount(0));
             Debug.Log("GPUTerrain Ready");
             isReady = true;
         }
 
-        public int setCullingGetInstanceCount(Camera camera){
-            UnityEngine.Profiling.Profiler.BeginSample("CullGPUTiles");
-            instanceCount = 0;
-            // reuse corners and planes for all camera calcs
-            OffsetData.frustrumFromMatrix(camera.cullingMatrix, ref planes);
-            for (int idx = 0; idx < terrainCount; idx ++){
-                UnityEngine.Profiling.Profiler.BeginSample("ReadArray");
-                OffsetData d = offset_data_arr[idx];
-                UnityEngine.Profiling.Profiler.EndSample();
-                UnityEngine.Profiling.Profiler.BeginSample("CullCameraFoV");
-                if(!d.visibleIn(ref planes, tileSize, height, ref corners)){
-                    UnityEngine.Profiling.Profiler.EndSample();
-                    continue;
-                }
-                UnityEngine.Profiling.Profiler.EndSample();
-                UnityEngine.Profiling.Profiler.BeginSample("Assign FoV Array");
-                fov_array[instanceCount] = idx;
-                instanceCount += 1;
-                UnityEngine.Profiling.Profiler.EndSample();
-            }
-            UnityEngine.Profiling.Profiler.EndSample();
-            UnityEngine.Profiling.Profiler.BeginSample("SetLiveGPUTiles");
-            fovBuffer.SetData(fov_array, 0, 0, instanceCount);
-            UnityEngine.Profiling.Profiler.EndSample();
-            return instanceCount;
+        public void setCullingGetInstanceCount(Camera camera){
+            gpuCull.setCullingGetInstanceCount(camera);
         }
 
         public void setBillboardPosition(int id, float x_pos, float z_pos, float y_off, bool waitForHeight=true){
@@ -258,7 +169,7 @@ namespace xshazwar
 
         public void hideBillboard(int id){
             // remove from view but do not deallocate
-            setBillboardPosition(id, offset_data_arr[id].x, offset_data_arr[id].z, -1000000f, false);
+            setBillboardPosition(id, offset_data_arr[id].x, offset_data_arr[id].z, -10000f, false);
         }
 
         public void unhideBillboard(int id){
@@ -291,8 +202,6 @@ namespace xshazwar
             while(offsetUpdates.TryDequeue(out idx)){
                 offsetBuffer.SetData(offset_data_arr, idx, idx, 1);
             }
-            // cull and count
-            int count = setCullingGetInstanceCount(camera);
             // very cheap about .05 uS / copy @ resolution of 128
             while (heightsUpdates.TryDequeue(out idx)){
                 UnityEngine.Profiling.Profiler.BeginSample("Writing Terrain Buffer");
@@ -302,29 +211,32 @@ namespace xshazwar
                 offsetBuffer.SetData(offset_data_arr, offetIdx, offetIdx, 1);
                 UnityEngine.Profiling.Profiler.EndSample();
             }
+            // cull and count
+            setCullingGetInstanceCount(camera);
             UnityEngine.Profiling.Profiler.BeginSample("DrawInstancedCall");
-            if ( count > 0 ){  // Fixes nulls when "Looking" stright down (and probably up) BLAME: Twobob
-                Graphics.DrawMeshInstancedProcedural(mesh, 0, material, bounds, count, materialProps);
-            }
+            // if ( count > 0 ){  // Fixes nulls when "Looking" stright down (and probably up) BLAME: Twobob
+            //     Graphics.DrawMeshInstancedProcedural(mesh, 0, material, bounds, count, materialProps);
+            // }
+            Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, drawArgsBuffer, 0, materialProps);
             UnityEngine.Profiling.Profiler.EndSample();
-
         }
 
         public void flush(){
             isReady = false;
-            fov_array = null;
+            // fov_array = null;
             offset_data_arr = null;
             all_heights_arr = null;
-            try{
-                fovBuffer.Release();
-            }catch{}
-            try{
-                terrainBuffer.Release();
-            }catch{}
-            terrainBuffer = null;
-            try{
-                offsetBuffer.Release();
-            }catch{}
+            foreach(ComputeBuffer b in new List<ComputeBuffer>{
+                drawArgsBuffer,
+                fovBuffer,
+                terrainBuffer,
+                offsetBuffer
+            }){
+                try{
+                    b.Release();
+                }catch{}
+            }
+            gpuCull.Destroy();
             fovBuffer = null;
             offsetBuffer = null;
             heightsUpdates = null;

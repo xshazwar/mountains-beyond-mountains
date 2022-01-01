@@ -19,9 +19,9 @@ BEGIN_CBUFFER
    float _MeshOverlap;
    float _Height;
    float _DownScale;
-   uniform StructuredBuffer<OffsetData> _Offset;
-   uniform StructuredBuffer<float> _TerrainValues;
-   uniform StructuredBuffer<int> _FOV;
+   StructuredBuffer<OffsetData> _Offset;
+   StructuredBuffer<float> _TerrainValues;
+   StructuredBuffer<uint> _FOV;
 END_CBUFFER
 
 // if you are writing a subshader, any defines that should be set on the main
@@ -105,7 +105,7 @@ BEGIN_CODE
       ApplyNormal(v, v.vertex.x, v.vertex.z, TILEIDX);
       v.vertex.y = clamp(
          (_TerrainValues[HeightIdx(TILEIDX, v.vertex.x, v.vertex.z)] * _Height) + _offset.y,
-         0 ,
+         -10000 ,
          .999 * _Height
       );
       v.vertex.x = (v.vertex.x * MESH_RATIO) + _offset.x - ( _MeshOverlap * MESH_RATIO);

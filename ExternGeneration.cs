@@ -14,7 +14,7 @@ using MapMagic.Nodes;
 using MapMagic.Nodes.MatrixGenerators;
 using MapMagic.Terrains;
 
-// using Sirenix.OdinInspector;
+using xshazwar.Renderer;
 
 namespace xshazwar {
     public class ExternGeneration : MonoBehaviour {
@@ -23,6 +23,7 @@ namespace xshazwar {
         public ExternGeneration leader;
         public Camera camera;
         public Resolution resolution = Resolution._65;
+        public ComputeShader cullShader;
         public int downscale = 1;
         public int margin = 2;
         public int startDistance = 0;
@@ -35,6 +36,9 @@ namespace xshazwar {
         #if UNITY_EDITOR
         void OnValidate(){
             // mapMagic = gameObject.transform.parent.gameObject.GetComponent<MapMagicObject>();
+            // if(cullShader == null){
+            //     throw new Exception("Set the culling ComputeShader!");
+            // }
         }
         #endif
         
@@ -42,7 +46,7 @@ namespace xshazwar {
             if (camera == null){
                 camera = Camera.main;
             }
-            renderer = new TerrainRenderer(material, endDistance, downscale, (int) resolution, margin, mapMagic.tileSize.x, mapMagic.globals.height, startDistance, debugColor);
+            renderer = new TerrainRenderer(Instantiate(cullShader), material, endDistance, downscale, (int) resolution, margin, mapMagic.tileSize.x, mapMagic.globals.height, startDistance, debugColor);
             MSProceduralRules procRules = gameObject.GetComponent<MSProceduralRules>();
 #if __MICROSPLAT__
             if (procRules != null && procRules.procTexCfg != null){

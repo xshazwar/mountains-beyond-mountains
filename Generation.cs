@@ -17,6 +17,8 @@ using MapMagic.Nodes;
 using MapMagic.Nodes.MatrixGenerators;
 using MapMagic.Terrains;
 
+using xshazwar.Renderer;
+
 namespace xshazwar {
         
         public interface IHandlePosition
@@ -24,7 +26,7 @@ namespace xshazwar {
             public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
         }
 
-        public enum Resolution { _33=33, _65=65, _129=129, _257=257, _513=513, _1025=1025, _2049=2049 };
+        public enum Resolution {_6=6, _8=8, _17=17, _33=33, _65=65, _129=129, _257=257, _513=513, _1025=1025, _2049=2049 };
         public class BillboardLoD{            
             public int id;
             public Coord coord;
