@@ -40,7 +40,7 @@ How much can you draw with a good graphics card?
 
 ![](./_doc/debug-50x.jpg)
 
-Here's a range of 50. Once we move Frustrum culling to the GPU we should be able to cut 15-20ms from the CPU time with this size. WIP.
+Here's a range of 50.
 
 The solid colors are ok, but you want billboards to look like the normal terrain. There's also a MicroSplat plugin included with this package. This allows you to set procedural rules in Microsplat and have them rendered on your billboards. The performance isn't much worse using textures and the current bottlenecks are the same.
 
