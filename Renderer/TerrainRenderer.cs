@@ -133,8 +133,8 @@ namespace xshazwar.Renderer
             isReady = true;
         }
 
-        public int setCullingGetInstanceCount(Camera camera){
-            return gpuCull.setCullingGetInstanceCount(camera);
+        public void setCullingGetInstanceCount(Camera camera){
+            gpuCull.setCullingGetInstanceCount(camera);
         }
 
         public void setBillboardPosition(int id, float x_pos, float z_pos, float y_off, bool waitForHeight=true){
@@ -212,13 +212,12 @@ namespace xshazwar.Renderer
                 UnityEngine.Profiling.Profiler.EndSample();
             }
             // cull and count
-            int count = setCullingGetInstanceCount(camera);
+            setCullingGetInstanceCount(camera);
             UnityEngine.Profiling.Profiler.BeginSample("DrawInstancedCall");
-            Debug.Log(count);
             // if ( count > 0 ){  // Fixes nulls when "Looking" stright down (and probably up) BLAME: Twobob
             //     Graphics.DrawMeshInstancedProcedural(mesh, 0, material, bounds, count, materialProps);
             // }
-            // Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, drawArgsBuffer, 0, materialProps);
+            Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, drawArgsBuffer, 0, materialProps);
             UnityEngine.Profiling.Profiler.EndSample();
         }
 

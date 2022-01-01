@@ -47,24 +47,27 @@ public class TestScan : MonoBehaviour
         drawBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
         drawArgs = new uint[5] { 0, 0, 0, 0, 0 };
         drawBuffer.SetData(drawArgs);
+        shader.SetInt("SCAN_SIZE", count);
+        shader.SetBuffer(idScan, "SCAN_VALUES", nbuff);
+        shader.SetBuffer(idScan, "REDUCE_BLOCK", bbuff);
+        shader.SetBuffer(idReduce, "SCAN_VALUES", nbuff);
+        shader.SetBuffer(idReduce, "REDUCE_BLOCK", bbuff);
+
+        shader.SetBuffer(idCopy, "SCAN_VALUES", nbuff);
+        shader.SetBuffer(idCopy, "REDUCE_BLOCK", bbuff);
+        shader.SetBuffer(idCopy, "DRAW_BUFFER", drawBuffer);
         work();
     }
 
     public void work(){
         for (int i = 0; i < count ; i ++){
-            nums[i] = (float) rand.Next(0, 255);
+            nums[i] = (float) rand.Next(-2, 0);
         }
         sumcheck = nums.Sum();
         Debug.Log(sumcheck);
         nbuff.SetData(nums);
         
-        shader.SetBuffer(idScan, "SCAN_VALUES", nbuff);
-        shader.SetBuffer(idScan, "REDUCE_BLOCK", bbuff);
-        shader.SetBuffer(idReduce, "SCAN_VALUES", nbuff);
-        shader.SetBuffer(idReduce, "REDUCE_BLOCK", bbuff);
-        shader.SetBuffer(idCopy, "SCAN_VALUES", nbuff);
-        shader.SetBuffer(idCopy, "REDUCE_BLOCK", bbuff);
-        shader.SetBuffer(idCopy, "DRAW_BUFFER", drawBuffer);
+        
         UnityEngine.Profiling.Profiler.BeginSample("Scan");
         shader.Dispatch(idScan, threads, 1, 1);
         if(reductions > 0){
@@ -79,7 +82,7 @@ public class TestScan : MonoBehaviour
         // foreach(float f in bsums){
         //     Debug.Log(f);
         // }
-        Debug.Log(nums[count-1] == sumcheck);
+        Debug.Log($"{nums[count-1]} ? {nums[count-1] == sumcheck}");
         Debug.Log(drawArgs[1]);
         Debug.Log(drawArgs[1] == sumcheck);
         // Debug.Log(nums[count-1]);
@@ -88,9 +91,9 @@ public class TestScan : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        // for (int x = 0 ; x < 1; x ++){
-        //     work();
-        // }
+        for (int x = 0 ; x < 1; x ++){
+            work();
+        }
     }
 
     void OnDestroy(){

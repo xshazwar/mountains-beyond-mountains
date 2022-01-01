@@ -60,3 +60,7 @@ void _SetFOV (uint3 id : SV_DispatchThreadID)
     _FOV[idx] = idx;
     fovscores[idx] = (inView + notSunken) > 1 ? -1 : 0;
 }
+
+void _ZeroScores(uint3 id : SV_DispatchThreadID){
+    fovscores[id.x] = 0;
+}

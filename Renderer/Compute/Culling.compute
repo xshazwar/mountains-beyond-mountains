@@ -1,9 +1,11 @@
 // Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ZeroScores
 #pragma kernel ScorePlane
 #pragma kernel SetFOV
 #pragma kernel BitonicSort
 #pragma kernel BitonicSortInt
 #pragma kernel InitKeys
+#pragma kernel ZeroReduce
 #pragma kernel Scan
 #pragma kernel ScanReduce
 #pragma kernel SetDrawBuffer
@@ -14,6 +16,13 @@
 #include "./MergeSort/BitonicMergeSort.hlsl"
 #include "./Cull/Culling.hlsl"
 #include "./Scan/Scan.hlsl"
+
+// clear buffer
+[numthreads(32,1,1)]
+void ZeroScores (uint3 id : SV_DispatchThreadID)
+{
+    _ZeroScores(id);
+}
 
 
 // offset, planes
@@ -43,6 +52,11 @@ void BitonicSortInt(uint3 id : SV_DispatchThreadID) {
 [numthreads(BIOTIC_GROUP_SIZE,1,1)]
 void InitKeys(uint3 id : SV_DispatchThreadID) {
     _InitKeys(id);
+}
+
+[numthreads(SCAN_GROUPSIZE,1,1)]
+void ZeroReduce (uint3 id: SV_DispatchThreadID){
+    _ZeroReduce(id);
 }
 
 [numthreads(SCAN_GROUPSIZE,1,1)]

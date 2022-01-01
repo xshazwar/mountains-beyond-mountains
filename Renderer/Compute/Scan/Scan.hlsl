@@ -4,6 +4,7 @@
 
 #define GRP (SCAN_GROUPSIZE) // handled by single wavelet && number in a wave group
 #define GRPSQR (GRP * GRP)
+int SCAN_SIZE;
 RWStructuredBuffer<float> REDUCE_BLOCK;
 RWStructuredBuffer<float> SCAN_VALUES;
 RWStructuredBuffer<uint> DRAW_BUFFER;
@@ -38,6 +39,10 @@ void _Scan (uint3 id)
     }
 }
 
+void _ZeroReduce(uint3 id){
+    REDUCE_BLOCK[id.x] = 0;
+}
+
 // if we actually want to turn the original array into a proper scan
 void _ReduceScan (uint3 id)
 {
@@ -58,13 +63,15 @@ void _ReduceScan (uint3 id)
 }
 
 // We can just read the reduce blocks and last value to get the final count
+// always returns a positive number (draw buffer needs a uint)
 void _SetDrawBuffer (uint3 id)
 {
-    uint stride = 0;
     uint count = 0;
-    uint tSize = 0;
-    SCAN_VALUES.GetDimensions(tSize, stride);
-    count = (uint) SCAN_VALUES[tSize - 1];
+    if (SCAN_VALUES[SCAN_SIZE - 1] < 0){
+        count = (uint) ( -1 * SCAN_VALUES[SCAN_SIZE - 1]);
+    }else{
+        count = (uint) SCAN_VALUES[SCAN_SIZE - 1];
+    }
     if (id.x == 0){
         DRAW_BUFFER[1] =  count;
     }

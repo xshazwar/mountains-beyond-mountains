@@ -25,8 +25,10 @@ namespace xshazwar.Renderer {
 
         public static string cullingShaderName = "Culling";
         ComputeShader cullShader;
+        int cullShader_zeroScores;
         int cullShader_stageScore;
         int cullShader_stageSetFOV;
+        int scanShader_zeroReduce;
         int scanShader_stageScan;
         int scanShader_stageReduce;
         int scanShader_stageSetDraws;
@@ -60,8 +62,10 @@ namespace xshazwar.Renderer {
             this.terrainCount = terrainCount;
             Debug.Log($"sort size {sortSize}; terrain count {terrainCount}");
             fovScores = new float[terrainCount];
+            cullShader_zeroScores = cullShader.FindKernel("ZeroScores");
             cullShader_stageScore = cullShader.FindKernel("ScorePlane");
             cullShader_stageSetFOV = cullShader.FindKernel("SetFOV");
+            scanShader_zeroReduce = cullShader.FindKernel("ZeroReduce");
             scanShader_stageScan = cullShader.FindKernel("Scan");
             scanShader_stageReduce = cullShader.FindKernel("ScanReduce");
             scanShader_stageSetDraws = cullShader.FindKernel("SetDrawBuffer");
@@ -72,6 +76,9 @@ namespace xshazwar.Renderer {
             cullingFOVScoresBuffer = new ComputeBuffer(sortSize, 4);
             cullingPlanesBuffer = new ComputeBuffer(6, 4 * 4);
 
+            cullShader.SetInt("SCAN_SIZE", sortSize);
+            cullShader.SetBuffer(cullShader_zeroScores, "fovscores", cullingFOVScoresBuffer);
+
             cullShader.SetBuffer(cullShader_stageScore, "planes", cullingPlanesBuffer);
             cullShader.SetBuffer(cullShader_stageScore, "scores", cullingCornerScoresBuffer);
             cullShader.SetBuffer(cullShader_stageScore, "_Offset", offsetBuffer);
@@ -81,18 +88,23 @@ namespace xshazwar.Renderer {
             cullShader.SetBuffer(cullShader_stageSetFOV, "_FOV", fovBuffer);
             cullShader.SetBuffer(cullShader_stageSetFOV, "fovscores", cullingFOVScoresBuffer);
             
-            scanThreadSize = (int) Math.Ceiling(sortSize / (float) scanGroupSize);
+            scanThreadSize = (int) Math.Ceiling(sortSize /(1.0 * scanGroupSize));
             scanReductions = scanThreadSize / scanGroupSize;
             if (scanReductions > 0){ // > size of 1024
                 Debug.Log($"reductions {scanReductions}, threads {scanThreadSize}");
                 scanReduceBuffer = new ComputeBuffer(scanReductions, 4);
             }else{
+                Debug.Log($"no reductions");
                 scanReduceBuffer = new ComputeBuffer(1, 4);
             }
+            cullShader.SetBuffer(scanShader_zeroReduce, "REDUCE_BLOCK", scanReduceBuffer);
+
             cullShader.SetBuffer(scanShader_stageScan, "SCAN_VALUES", cullingFOVScoresBuffer);
             cullShader.SetBuffer(scanShader_stageScan, "REDUCE_BLOCK", scanReduceBuffer);
+
             cullShader.SetBuffer(scanShader_stageReduce, "SCAN_VALUES", cullingFOVScoresBuffer);
             cullShader.SetBuffer(scanShader_stageReduce, "REDUCE_BLOCK", scanReduceBuffer);
+
             cullShader.SetBuffer(scanShader_stageSetDraws, "SCAN_VALUES", cullingFOVScoresBuffer);
             cullShader.SetBuffer(scanShader_stageSetDraws, "DRAW_BUFFER", drawArgsBuffer);
 
@@ -106,8 +118,13 @@ namespace xshazwar.Renderer {
             drawArgsBuffer.SetData(drawArgs);
         }
 
-        public int setCullingGetInstanceCount(Camera camera){
+        public void setCullingGetInstanceCount(Camera camera){
             UnityEngine.Profiling.Profiler.BeginSample("CullGPUTiles");
+
+            cullShader.Dispatch(cullShader_zeroScores, sortSize, 1, 1);
+            if (scanReductions > 0){
+                cullShader.Dispatch(scanShader_zeroReduce, scanReductions, 1, 1);
+            }
             // reuse corners and planes for all camera calcs
             OffsetData.frustrumFromMatrix(camera.cullingMatrix, ref planes);
             
@@ -122,33 +139,6 @@ namespace xshazwar.Renderer {
             sorter.Init(fovBuffer);
             sorter.Sort(fovBuffer, cullingFOVScoresBuffer);
             UnityEngine.Profiling.Profiler.EndSample();
-            // UnityEngine.Profiling.Profiler.BeginSample("ComputeScan");
-            // cullShader.Dispatch(scanShader_stageScan, scanThreadSize, 1, 1);
-            // if (scanReductions > 0){
-            //     cullShader.Dispatch(scanShader_stageReduce, scanThreadSize, 1, 1);
-            // }
-            // UnityEngine.Profiling.Profiler.EndSample();
-    
-            // UnityEngine.Profiling.Profiler.EndSample();
-            // UnityEngine.Profiling.Profiler.BeginSample("sort / count");
-            // Array.Sort<FOV>(
-            //     fov_array, (a, b) => FOV.Compare(a, b));
-            
-            UnityEngine.Profiling.Profiler.BeginSample("Get FoV buffer from GPU");
-            cullingFOVScoresBuffer.GetData(fovScores, 0, 0, terrainCount);
-            UnityEngine.Profiling.Profiler.EndSample();
-            UnityEngine.Profiling.Profiler.BeginSample("count");
-            instanceCount = 0;
-            for(int i = 0; i < terrainCount; i ++){
-                if (fovScores[i] < 0f){
-                    instanceCount ++;
-                }
-            }
-            Debug.Log($"counted: {instanceCount}");
-            UnityEngine.Profiling.Profiler.EndSample();
-            // UnityEngine.Profiling.Profiler.BeginSample("set buffer");
-            // fovBuffer.SetData(fov_array, 0, 0, instanceCount);
-            // UnityEngine.Profiling.Profiler.EndSample();
 
             UnityEngine.Profiling.Profiler.BeginSample("ComputeScan");
             cullShader.Dispatch(scanShader_stageScan, scanThreadSize, 1, 1);
@@ -157,13 +147,6 @@ namespace xshazwar.Renderer {
             }
             cullShader.Dispatch(scanShader_stageSetDraws, 1, 1, 1);
             UnityEngine.Profiling.Profiler.EndSample();
-            UnityEngine.Profiling.Profiler.BeginSample("getCount");
-            drawArgsBuffer.GetData(drawArgs);
-            // instanceCount = (int) drawArgs[1];
-            Debug.Log($"drawbuffer: {drawArgs[1]}");
-            UnityEngine.Profiling.Profiler.EndSample();
-
-            return instanceCount;
         }
 
         public void Destroy(){
