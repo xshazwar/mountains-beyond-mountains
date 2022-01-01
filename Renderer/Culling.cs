@@ -16,6 +16,7 @@ namespace xshazwar.Renderer {
         ComputeBuffer scanReduceBuffer;
         ComputeBuffer offsetBuffer;
         ComputeBuffer fovBuffer;
+        ComputeBuffer drawArgsBuffer;
 
         private Vector4[] planes;
         int terrainCount;
@@ -28,6 +29,7 @@ namespace xshazwar.Renderer {
         int cullShader_stageSetFOV;
         int scanShader_stageScan;
         int scanShader_stageReduce;
+        int scanShader_stageSetDraws;
         int threadCount = 0;
         int sortSize = 0;
         int scanGroupSize = 32;
@@ -37,15 +39,24 @@ namespace xshazwar.Renderer {
 
         float[] fovScores;
 
-        public GPUCulling(ComputeShader _cpt, ComputeBuffer offsetBuffer, ComputeBuffer fovBuffer, int sortSize){
+        private uint[] drawArgs;
+
+        public GPUCulling(
+                ComputeShader _cpt,
+                ComputeBuffer offsetBuffer,
+                ComputeBuffer fovBuffer,
+                ComputeBuffer drawArgsBuffer,
+                int sortSize
+            ){
             this.cullShader = _cpt;
             this.offsetBuffer = offsetBuffer;
             this.fovBuffer = fovBuffer;
+            this.drawArgsBuffer = drawArgsBuffer;
             this.sortSize = sortSize;
             planes = new Vector4[6];
         }
 
-        public void init(int terrainCount, float tileSize, float height){
+        public void init(int terrainCount, float tileSize, float height, uint meshIndexSize){
             this.terrainCount = terrainCount;
             Debug.Log($"sort size {sortSize}; terrain count {terrainCount}");
             fovScores = new float[terrainCount];
@@ -53,6 +64,7 @@ namespace xshazwar.Renderer {
             cullShader_stageSetFOV = cullShader.FindKernel("SetFOV");
             scanShader_stageScan = cullShader.FindKernel("Scan");
             scanShader_stageReduce = cullShader.FindKernel("ScanReduce");
+            scanShader_stageSetDraws = cullShader.FindKernel("SetDrawBuffer");
 
             threadCount = Mathf.CeilToInt(terrainCount / 32.0f);
             
@@ -81,12 +93,17 @@ namespace xshazwar.Renderer {
             cullShader.SetBuffer(scanShader_stageScan, "REDUCE_BLOCK", scanReduceBuffer);
             cullShader.SetBuffer(scanShader_stageReduce, "SCAN_VALUES", cullingFOVScoresBuffer);
             cullShader.SetBuffer(scanShader_stageReduce, "REDUCE_BLOCK", scanReduceBuffer);
-    
+            cullShader.SetBuffer(scanShader_stageSetDraws, "SCAN_VALUES", cullingFOVScoresBuffer);
+            cullShader.SetBuffer(scanShader_stageSetDraws, "DRAW_BUFFER", drawArgsBuffer);
 
             cullShader.SetFloat("MAX_OFFSET", terrainCount * 1f);
             cullShader.SetFloat("TS", tileSize * 1f);
             cullShader.SetFloat("HEIGHT", height * 1f);
             sorter = new BitonicMergeSort(this.cullShader);
+
+            drawArgs = new uint[5] { 0, 0, 0, 0, 0 };
+            drawArgs[0] = meshIndexSize;
+            drawArgsBuffer.SetData(drawArgs);
         }
 
         public int setCullingGetInstanceCount(Camera camera){
@@ -127,19 +144,25 @@ namespace xshazwar.Renderer {
                     instanceCount ++;
                 }
             }
-            // Debug.Log(instanceCount);
+            Debug.Log($"counted: {instanceCount}");
             UnityEngine.Profiling.Profiler.EndSample();
             // UnityEngine.Profiling.Profiler.BeginSample("set buffer");
             // fovBuffer.SetData(fov_array, 0, 0, instanceCount);
             // UnityEngine.Profiling.Profiler.EndSample();
 
-            // UnityEngine.Profiling.Profiler.BeginSample("ComputeScan");
-            // cullShader.Dispatch(scanShader_stageScan, scanThreadSize, 1, 1);
-            // if (scanReductions > 0){
-            //     cullShader.Dispatch(scanShader_stageReduce, scanThreadSize, 1, 1);
-            // }
-            // UnityEngine.Profiling.Profiler.EndSample();
-            
+            UnityEngine.Profiling.Profiler.BeginSample("ComputeScan");
+            cullShader.Dispatch(scanShader_stageScan, scanThreadSize, 1, 1);
+            if (scanReductions > 0){
+                cullShader.Dispatch(scanShader_stageReduce, scanThreadSize, 1, 1);
+            }
+            cullShader.Dispatch(scanShader_stageSetDraws, 1, 1, 1);
+            UnityEngine.Profiling.Profiler.EndSample();
+            UnityEngine.Profiling.Profiler.BeginSample("getCount");
+            drawArgsBuffer.GetData(drawArgs);
+            // instanceCount = (int) drawArgs[1];
+            Debug.Log($"drawbuffer: {drawArgs[1]}");
+            UnityEngine.Profiling.Profiler.EndSample();
+
             return instanceCount;
         }
 
@@ -148,7 +171,8 @@ namespace xshazwar.Renderer {
                 cullingPlanesBuffer,
                 cullingCornerScoresBuffer,
                 cullingFOVScoresBuffer,
-                scanReduceBuffer
+                scanReduceBuffer,
+                drawArgsBuffer
             }){
                 try{
                     b.Release();

@@ -32,6 +32,7 @@ namespace xshazwar.Renderer
         public ComputeBuffer fovBuffer;
         public ComputeBuffer offsetBuffer;
         public ComputeBuffer terrainBuffer;
+        public ComputeBuffer drawArgsBuffer;
 
         // CPU Side Buffer Sources
         OffsetData[] offset_data_arr;
@@ -106,10 +107,12 @@ namespace xshazwar.Renderer
             }
 
             fovBuffer = new ComputeBuffer(sortSize, 4);
-            float[] fov_array = Enumerable.Repeat(10000f,sortSize).ToArray();
+            float[] fov_array = Enumerable.Repeat(0f,sortSize).ToArray();
             fovBuffer.SetData(fov_array);
+            
+            drawArgsBuffer = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
 
-            gpuCull = new GPUCulling(_cpt, offsetBuffer, fovBuffer, sortSize);
+            gpuCull = new GPUCulling(_cpt, offsetBuffer, fovBuffer, drawArgsBuffer, sortSize);
 
             float ws_bound = (range) * tileSize;
             materialProps = new MaterialPropertyBlock();
@@ -125,7 +128,7 @@ namespace xshazwar.Renderer
             materialProps.SetBuffer("_TerrainValues", terrainBuffer);
             materialProps.SetBuffer("_FOV", fovBuffer);
             
-            gpuCull.init(terrainCount, tileSize, height);
+            gpuCull.init(terrainCount, tileSize, height, mesh.GetIndexCount(0));
             Debug.Log("GPUTerrain Ready");
             isReady = true;
         }
@@ -211,11 +214,12 @@ namespace xshazwar.Renderer
             // cull and count
             int count = setCullingGetInstanceCount(camera);
             UnityEngine.Profiling.Profiler.BeginSample("DrawInstancedCall");
-            if ( count > 0 ){  // Fixes nulls when "Looking" stright down (and probably up) BLAME: Twobob
-                Graphics.DrawMeshInstancedProcedural(mesh, 0, material, bounds, count, materialProps);
-            }
+            Debug.Log(count);
+            // if ( count > 0 ){  // Fixes nulls when "Looking" stright down (and probably up) BLAME: Twobob
+            //     Graphics.DrawMeshInstancedProcedural(mesh, 0, material, bounds, count, materialProps);
+            // }
+            // Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, drawArgsBuffer, 0, materialProps);
             UnityEngine.Profiling.Profiler.EndSample();
-
         }
 
         public void flush(){
@@ -223,16 +227,16 @@ namespace xshazwar.Renderer
             // fov_array = null;
             offset_data_arr = null;
             all_heights_arr = null;
-            try{
-                fovBuffer.Release();
-            }catch{}
-            try{
-                terrainBuffer.Release();
-            }catch{}
-            terrainBuffer = null;
-            try{
-                offsetBuffer.Release();
-            }catch{}
+            foreach(ComputeBuffer b in new List<ComputeBuffer>{
+                drawArgsBuffer,
+                fovBuffer,
+                terrainBuffer,
+                offsetBuffer
+            }){
+                try{
+                    b.Release();
+                }catch{}
+            }
             gpuCull.Destroy();
             fovBuffer = null;
             offsetBuffer = null;

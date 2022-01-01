@@ -58,5 +58,5 @@ void _SetFOV (uint3 id : SV_DispatchThreadID)
     float notSunken = d.offset > -100 ? 1 : -1;
     // // cull sunken while we're here
     _FOV[idx] = idx;
-    fovscores[idx] = (inView + notSunken) > 1 ? -1 : 1;
+    fovscores[idx] = (inView + notSunken) > 1 ? -1 : 0;
 }

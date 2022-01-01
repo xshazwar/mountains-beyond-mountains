@@ -6,6 +6,7 @@
 #define GRPSQR (GRP * GRP)
 RWStructuredBuffer<float> REDUCE_BLOCK;
 RWStructuredBuffer<float> SCAN_VALUES;
+RWStructuredBuffer<uint> DRAW_BUFFER;
 
 groupshared float SHARED[GRP];
 
@@ -37,11 +38,12 @@ void _Scan (uint3 id)
     }
 }
 
+// if we actually want to turn the original array into a proper scan
 void _ReduceScan (uint3 id)
 {
-    uint addr = id.x * GRP;
-    int local = id.x % GRP;
-    uint end_baddr = floor(addr / GRPSQR);
+    uint addr = id.x * (uint) GRP;
+    int local = id.x % (uint) GRP;
+    uint end_baddr = (uint) floor( (uint) addr / (uint) GRPSQR);
     // get result of previous block
     float block_start = 0;
     for (uint bidx = 0; bidx < end_baddr; bidx ++){
@@ -52,5 +54,18 @@ void _ReduceScan (uint3 id)
         x = i + addr;
         float old = SCAN_VALUES[x];
         SCAN_VALUES[x] = old + block_start;
+    }
+}
+
+// We can just read the reduce blocks and last value to get the final count
+void _SetDrawBuffer (uint3 id)
+{
+    uint stride = 0;
+    uint count = 0;
+    uint tSize = 0;
+    SCAN_VALUES.GetDimensions(tSize, stride);
+    count = (uint) SCAN_VALUES[tSize - 1];
+    if (id.x == 0){
+        DRAW_BUFFER[1] =  count;
     }
 }

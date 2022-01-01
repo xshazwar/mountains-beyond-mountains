@@ -1,5 +1,6 @@
 #pragma kernel Scan
 #pragma kernel ReduceScan
+#pragma kernel SetDrawBuffer
 
 #define SCAN_GROUPSIZE 32
 
@@ -15,4 +16,10 @@ void Scan (uint3 id : SV_DispatchThreadID)
 void ReduceScan (uint3 id : SV_DispatchThreadID)
 {
     _ReduceScan(id);
+}
+
+[numthreads(1,1,1)]
+void SetDrawBuffer (uint3 id : SV_DispatchThreadID)
+{
+    _SetDrawBuffer(id);
 }

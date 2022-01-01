@@ -6,6 +6,7 @@
 #pragma kernel InitKeys
 #pragma kernel Scan
 #pragma kernel ScanReduce
+#pragma kernel SetDrawBuffer
 
 #define BIOTIC_GROUP_SIZE 256
 #define SCAN_GROUPSIZE 32
@@ -52,4 +53,9 @@ void Scan (uint3 id: SV_DispatchThreadID){
 [numthreads(SCAN_GROUPSIZE,1,1)]
 void ScanReduce (uint3 id: SV_DispatchThreadID){
     _ReduceScan(id);
+}
+
+[numthreads(SCAN_GROUPSIZE,1,1)]
+void SetDrawBuffer (uint3 id: SV_DispatchThreadID){
+    _SetDrawBuffer(id);
 }
