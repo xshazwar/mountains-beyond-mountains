@@ -26,6 +26,11 @@ namespace xshazwar {
             public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
         }
 
+        public interface IReportStatus {
+            public Action<Coord> OnTileRendered {get; set;}
+            public Action<Coord> OnTileReleased {get; set;}
+        }
+
         public enum Resolution {_6=6, _8=8, _17=17, _33=33, _65=65, _129=129, _257=257, _513=513, _1025=1025, _2049=2049 };
         public class BillboardLoD{            
             public int id;
@@ -65,7 +70,7 @@ namespace xshazwar {
             }
         }
 
-        public class MapMagicListener: IHandlePosition{
+        public class MapMagicListener: IHandlePosition {
             HashSet<Coord> active; 
             Vector2 xRange;
             Vector2 zRange;
@@ -163,7 +168,7 @@ namespace xshazwar {
 
         }
 
-        public class Generator : IHandlePosition {
+        public class Generator : IHandlePosition, IReportStatus {
             MapMagicObject mm;    
             Graph graph;
             MapMagicListener listener;
@@ -172,6 +177,8 @@ namespace xshazwar {
             int range;
             int ignoreSize;
             public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
+            public Action<Coord> OnTileRendered {get; set;}
+            public Action<Coord> OnTileReleased {get; set;}
             BillboardLoD prototype;
             private Coord position;
             private Coord newPosition;
@@ -202,12 +209,15 @@ namespace xshazwar {
                 this.renderer = renderer;
                 if (leader != null){
                     leader.OnRangeUpdated += RangeUpdate;
+                    leader.OnTileRendered += TileActivated;
+                    leader.OnTileReleased += TileRemoved;
                 }
                 else{
                     listener = new MapMagicListener();
                     listener.OnRangeUpdated += RangeUpdate;
                     listener.OnTileActivated += TileActivated;
                     listener.OnTileRemoved += TileRemoved;
+                    avoidStartingMMTiles();
                 }
                 
                 newPosition.x = (int) Math.Floor(startingPosition.x / size);
@@ -252,7 +262,6 @@ namespace xshazwar {
                 List<TileToken> updates = new List<TileToken>();
                 while (changeQueue.TryDequeue(out tt)){
                     updates.Add(GetToken(tt));
-                    
                 }
                 foreach(TileToken update in updates){
                     try{
@@ -322,6 +331,12 @@ namespace xshazwar {
                     changeQueue.Enqueue(cull);
                 }
             }
+
+            public void avoidStartingMMTiles(){
+                foreach(TerrainTile tile in mm.tiles.All()){
+                    TileActivated(tile.coord);
+                }
+            }
             public void EnqueueTileRequest(TerrainRenderer renderer, TileToken token){
                 ThreadPool.QueueUserWorkItem( state => RequestTile(renderer, token));
             }
@@ -389,12 +404,14 @@ namespace xshazwar {
                                 // "BB removed @{prev.coord} recycle -> @{prev.id}"
                                 currentState.Remove(update.coord);
                                 ReleaseTile(renderer, (int) prev.id);
+                                OnTileReleased?.Invoke(update.coord);
                             }
                             break;
                         case TileStatus.ACTIVE:
                             // "TileActivated @{prev.coord} -> @{prev.id}"
                             currentState[update.coord].status = TileStatus.ACTIVE;
                             HideTile(renderer, (int) prev.id);
+                            OnTileReleased?.Invoke(update.coord);
                             break;
                         case TileStatus.BB:
                             if(update.id != null){
@@ -428,6 +445,7 @@ namespace xshazwar {
                 renderer.setBillboardPosition(nextID, newToken.coord.x * size, newToken.coord.z * size, 0f, false);
                 billboards.Enqueue(lod);
                 changeQueue.Enqueue(newToken);
+                OnTileRendered?.Invoke(newToken.coord);
             }
 
             public void ReleaseTile(TerrainRenderer renderer, int tokenID){
@@ -500,6 +518,8 @@ namespace xshazwar {
             public void Disconnect(){
                 if (leader != null){
                     leader.OnRangeUpdated += RangeUpdate;
+                    leader.OnTileRendered -= TileActivated;
+                    leader.OnTileReleased -= TileRemoved;
                 }
                 else{
                     listener.OnRangeUpdated -= RangeUpdate;
