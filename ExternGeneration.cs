@@ -14,15 +14,16 @@ using MapMagic.Nodes;
 using MapMagic.Nodes.MatrixGenerators;
 using MapMagic.Terrains;
 
+using xshazwar.Generation;
 using xshazwar.Renderer;
 
 namespace xshazwar {
-    public class ExternGeneration : MonoBehaviour {
+    public class ExternGeneration : MonoBehaviour, IReportStatus {
 
         public MapMagicObject mapMagic;
         public ExternGeneration leader;
         public Camera camera;
-        public Resolution resolution = Resolution._65;
+        public Generation.Resolution resolution = Generation.Resolution._65;
         public ComputeShader cullShader;
         public int downscale = 1;
         public int margin = 2;
@@ -30,7 +31,7 @@ namespace xshazwar {
         public int endDistance = 4;
         public Material material;
         public Color debugColor;
-        public Generator generator;
+        public Generation.Generator generator;
         private TerrainRenderer renderer;
 
         #if UNITY_EDITOR
@@ -54,7 +55,7 @@ namespace xshazwar {
                 Debug.Log("Set procedural rules");
             }
 #endif
-            generator = new Generator(mapMagic, leader?.generator, renderer, resolution, margin, mapMagic.tileSize, endDistance, startDistance, camera.gameObject.transform.position);
+            generator = new Generation.Generator(mapMagic, leader?.generator, renderer, resolution, margin, (Vector2)mapMagic.tileSize, endDistance, startDistance, camera.gameObject.transform.position);
         }
 
         void Start(){
@@ -63,10 +64,6 @@ namespace xshazwar {
             }          
         }
 
-        // [Button]
-        // public void Debug(){
-        //     renderer.ReportActive();
-        // }
         void Update(){
             generator.Update();
             renderer.UpdateFunctionOnGPU(camera);
@@ -77,6 +74,9 @@ namespace xshazwar {
             renderer?.flush();
             renderer = null;
         }
+
+        public Action<Generation.Coord> OnTileRendered {get; set;}
+        public Action<Generation.Coord> OnTileReleased {get; set;}
         
     }
 }
