@@ -4,133 +4,16 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
-using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Profiling;
 
-using Den.Tools;
-using Den.Tools.Tasks;
 using MapMagic.Core;
-using Den.Tools.Matrices;
-using MapMagic.Products;
-using MapMagic.Nodes;
-using MapMagic.Nodes.MatrixGenerators;
-using MapMagic.Terrains;
 
 using xshazwar.Renderer;
 
-namespace xshazwar {
-        
-        public interface IHandlePosition
-        {
-            public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
-        }
+namespace xshazwar.Generation {
 
-        public interface IReportStatus {
-            public Action<Coord> OnTileRendered {get; set;}
-            public Action<Coord> OnTileReleased {get; set;}
-        }
-
-        public enum Resolution {_6=6, _8=8, _17=17, _33=33, _65=65, _129=129, _257=257, _513=513, _1025=1025, _2049=2049 };
-        public class BillboardLoD{            
-            public int id;
-            public Coord coord;
-            public Resolution resolution;
-            public int margin;
-            public Vector2D tileSize;
-            public TileData data;
-            public StopToken stop;
-            public BillboardLoD(){
-                this.data = new TileData();
-            }
-
-            public static BillboardLoD CloneSettings(BillboardLoD o, int newID, Coord coord){
-                return new BillboardLoD(newID, coord, o.resolution, o.margin, o.tileSize);
-            }
-
-            public BillboardLoD(int id): this(){
-                this.id = id;
-            }
-            public BillboardLoD(int id, Coord coord, Resolution resolution, int margin, Vector2D tileSize): this(id){
-                setParams(coord, resolution, margin, tileSize);
-            }
-            public void setParams(Coord c, Resolution resolution, int margin, Vector2D tileSize){
-                this.coord = c;
-                this.resolution = resolution;
-                this.margin = margin;
-                this.tileSize = tileSize;
-                this.data.area = new Area(c, (int)resolution, margin, tileSize);
-            }
-
-            public void recycle(int id, Coord coord){
-                this.id = id;
-                this.coord = coord;
-                this.data = new TileData();
-                this.data.area = new Area(coord, (int)resolution, margin, tileSize);
-            }
-        }
-
-        public class MapMagicListener: IHandlePosition {
-            HashSet<Coord> active; 
-            Vector2 xRange;
-            Vector2 zRange;
-            Vector2 xRangePrevious;
-            Vector2 zRangePrevious;
-
-            public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
-            public Action<Coord> OnTileActivated;
-            public Action<Coord> OnTileRemoved;
-
-            public MapMagicListener(){
-                active = new HashSet<Coord>();
-                xRange = new Vector2();
-                zRange = new Vector2();
-                xRangePrevious = new Vector2();
-                zRangePrevious = new Vector2();
-                TerrainTile.OnLodSwitched += LodSwitched;
-            }
-
-            public void CalcActive(){
-                xRangePrevious = xRange;
-                zRangePrevious = zRange;
-                xRange.x = active.Select(v => v.x).Min();
-                xRange.y = active.Select(v => v.x).Max();
-                zRange.x = active.Select(v => v.z).Min();
-                zRange.y = active.Select(v => v.z).Max();
-                if (xRangePrevious != xRange || zRangePrevious != zRange){
-                    OnRangeUpdated?.Invoke(xRange, zRange);
-                }
-            }
-
-            // public static Action<TerrainTile, bool, bool> OnLodSwitched;
-            public void LodSwitched(TerrainTile tile, bool isMain, bool isDraft){
-                if (!isMain && !isDraft){
-                    lock(active){
-                        active.Remove(tile.coord);
-                        OnTileRemoved?.Invoke(tile.coord);
-                        CalcActive();
-                    }
-                }else{
-                    lock(active){
-                        active.Add(tile.coord);
-                        OnTileActivated?.Invoke(tile.coord);
-                        CalcActive();
-                    }
-                }               
-            }
-
-            public void Disconnect(){
-                TerrainTile.OnLodSwitched -= LodSwitched;
-                active = new HashSet<Coord>();
-            }
-        }
-
-        public enum TileStatus {
-            ACTIVE, // dont care if draft or main really
-            BB,
-            CULLED
-
-        };
         public class TileToken{
             public int? id;
             public Coord coord;
@@ -170,8 +53,8 @@ namespace xshazwar {
 
         public class Generator : IHandlePosition, IReportStatus {
             MapMagicObject mm;    
-            Graph graph;
             MapMagicListener listener;
+            MapMagicSource source;
             Generator leader;
             float size;
             int range;
@@ -192,21 +75,23 @@ namespace xshazwar {
             private Dictionary<Coord, TileToken> currentState;
             private TerrainRenderer renderer;
             
-            public Generator(MapMagicObject mm, Generator leader, TerrainRenderer renderer, Resolution resolution, int margin, Vector2D tileSize, int range, int ignoreSize = 0, Vector3 startingPosition = new Vector3()){
+            public Generator(MapMagicObject mm, Generator leader, TerrainRenderer renderer, Resolution resolution, int margin, Vector2 tileSize, int range, int ignoreSize = 0, Vector3 startingPosition = new Vector3()){
                 
                 this.mm = mm;
                 this.leader = leader;
-                this.graph = mm.graph;
                 size = tileSize.x;
                 this.range = range;
                 this.ignoreSize = ignoreSize;
-                Coord zero; zero.x = 0; zero.z = 0; 
+                position = new Generation.Coord(0, 0);
+                newPosition = new Generation.Coord(0, 0);
+                Generation.Coord zero = new Generation.Coord(0, 0);
                 prototype = new BillboardLoD(-100, zero, resolution, margin, tileSize);
                 billboards = new ConcurrentQueue<BillboardLoD>();
                 tokens = new ConcurrentQueue<TileToken>();
                 changeQueue = new ConcurrentQueue<TileToken>();
                 currentState = new Dictionary<Coord, TileToken>();
                 this.renderer = renderer;
+                source = new MapMagicSource(mm);
                 if (leader != null){
                     leader.OnRangeUpdated += RangeUpdate;
                     leader.OnTileRendered += TileActivated;
@@ -233,7 +118,7 @@ namespace xshazwar {
             public void Update(){
                 newPosition.x = (int)(xRange.x + xRange.y) / 2;
                 newPosition.z = (int)(zRange.x + zRange.y) / 2;
-                if (position != newPosition || changeQueue.Count > 0){
+                if (!position.Equals(newPosition) || changeQueue.Count > 0){
                     OnUpdate();
                     position = newPosition;
                     OnRangeUpdated?.Invoke(this.xRange, this.zRange);
@@ -244,11 +129,14 @@ namespace xshazwar {
                     Debug.Log("Renderer not ready for work...");
                     return;
                 }
-                if (position != newPosition){
+                if (!position.Equals(newPosition)){
                     UnityEngine.Profiling.Profiler.BeginSample("Cull Grid");
                     CullGrid();
                     UnityEngine.Profiling.Profiler.EndSample();
                 }
+                UnityEngine.Profiling.Profiler.BeginSample("StartJobs");
+                StartJobs();
+                UnityEngine.Profiling.Profiler.EndSample();
                 UnityEngine.Profiling.Profiler.BeginSample("Fill Grid");
                 FillGrid();
                 UnityEngine.Profiling.Profiler.EndSample();
@@ -259,17 +147,17 @@ namespace xshazwar {
 
             public void ServiceQueue(){
                 TileToken tt;
-                List<TileToken> updates = new List<TileToken>();
                 while (changeQueue.TryDequeue(out tt)){
-                    updates.Add(GetToken(tt));
-                }
-                foreach(TileToken update in updates){
                     try{
-                        DoChange(currentState[update.coord], update);
+                        DoChange(currentState[tt.coord], tt);
                     }catch(KeyNotFoundException){
-                        DoChange(null, update);   
+                        DoChange(null, tt);   
                     }
                 }
+            }
+
+            public async void StartJobs(){
+
             }
 
             public bool inIgnore(int x, int z, int posX, int posZ, int ignore){
@@ -287,31 +175,44 @@ namespace xshazwar {
                         z > posZ + _range);
             }
 
-            public IEnumerable<int> inRange(int pos, int _range){
-                for (int i = pos - _range; i <= pos + _range; i++ ){
-                    yield return i;
+            public int[] GetRange(int pos, int _range){
+                int[] v = new int[(2 * _range) + 1];
+                for (int i = 0; i <= 2 * _range; i++ ){
+                    v[i] = i - _range;
                 }
+                return v;
             }
 
             public void FillGrid(){
-                Coord t;
+                Coord t = new Generation.Coord(0,0);
                 // enqueue new tiles
-                foreach(int x in inRange(newPosition.x, range)){
-                    foreach(int z in inRange(newPosition.z, range)){
+                int[] xRange = GetRange(newPosition.x, range);
+                int[] zRange = GetRange(newPosition.z, range);
+
+                foreach(int x in xRange){
+                    foreach(int z in zRange){
                         // ignore exclusion zone && core tiles
+                        UnityEngine.Profiling.Profiler.BeginSample("CheckIgnore");
                         if (inIgnore(x, z, newPosition.x, newPosition.z, ignoreSize)){
+                            UnityEngine.Profiling.Profiler.EndSample();
                             continue;
                         }
+                        UnityEngine.Profiling.Profiler.EndSample();
                         t.x = x; t.z = z;
+                        UnityEngine.Profiling.Profiler.BeginSample("CheckKey");
                         if (!currentState.ContainsKey(t)){
+                            UnityEngine.Profiling.Profiler.EndSample();
                             UnityEngine.Profiling.Profiler.BeginSample("GetToken");
-                            TileToken nt = GetToken(new Coord(t.x, t.z), TileStatus.BB);
+                            TileToken nt = new TileToken(new Coord(t.x, t.z), TileStatus.BB);
                             UnityEngine.Profiling.Profiler.EndSample();
+                            UnityEngine.Profiling.Profiler.BeginSample("UpdateState");
                             currentState[nt.coord] = nt;
-                            UnityEngine.Profiling.Profiler.BeginSample("Enqueue Token Gen");
-                            EnqueueTileRequest(this.renderer, nt);
                             UnityEngine.Profiling.Profiler.EndSample();
-                        }
+                            UnityEngine.Profiling.Profiler.BeginSample("Enqueue Token Gen");
+                            EnqueueTileRequest(nt);
+                            UnityEngine.Profiling.Profiler.EndSample();
+                        }else{
+                            UnityEngine.Profiling.Profiler.EndSample();}
                     }
                 }
             }
@@ -333,23 +234,17 @@ namespace xshazwar {
             }
 
             public void avoidStartingMMTiles(){
-                foreach(TerrainTile tile in mm.tiles.All()){
-                    TileActivated(tile.coord);
+                foreach(Coord c in source.GetStartingTileCoords()){
+                    TileActivated(c);
                 }
+                
             }
-            public void EnqueueTileRequest(TerrainRenderer renderer, TileToken token){
-                ThreadPool.QueueUserWorkItem( state => RequestTile(renderer, token));
+            public void EnqueueTileRequest(TileToken token){
+                Task.Run( () => RequestTile(this.renderer, token) );
             }
 
             public TileToken GetToken(Coord coord, TileStatus status){
-                TileToken tt = new TileToken(coord, status);
-                // TODO turn this back into a pool
-                // TileToken tt;
-                // if(!tokens.TryDequeue(out tt)){
-                //     tt = new TileToken(coord, status);
-                // }
-                tt.Recycle(coord, status);
-                return tt;
+                return new TileToken(coord, status);
             }
 
             public TileToken GetToken(TileToken src){
@@ -432,7 +327,7 @@ namespace xshazwar {
 
             public void RequestTile(TerrainRenderer renderer, TileToken token){
                 int nextID = renderer.requestTileId();
-                TileToken newToken = GetToken(token.coord, TileStatus.BB);
+                TileToken newToken = new TileToken(token.coord, TileStatus.BB);
                 newToken.id = nextID;
                 BillboardLoD lod;
                 if (!billboards.TryDequeue(out lod)){
@@ -440,7 +335,7 @@ namespace xshazwar {
                 }else{
                     lod.recycle(nextID, newToken.coord);
                 }
-                StartGenerate(lod);
+                source.StartGenerate(lod);
                 renderer.setBillboardHeights(lod.id, lod.data.heights.arr);
                 renderer.setBillboardPosition(nextID, newToken.coord.x * size, newToken.coord.z * size, 0f, false);
                 billboards.Enqueue(lod);
@@ -461,59 +356,14 @@ namespace xshazwar {
             }
 
             public void TileActivated(Coord coord){
-                TileToken tt = GetToken(coord, TileStatus.ACTIVE);
-                changeQueue.Enqueue(tt);
+                changeQueue.Enqueue(new TileToken(coord, TileStatus.ACTIVE));
             }
 
             public void TileRemoved(Coord coord){
-                TileToken tt = GetToken(coord, TileStatus.CULLED);
-                changeQueue.Enqueue(tt);
+                changeQueue.Enqueue(new TileToken(coord, TileStatus.CULLED));
             }
-            
-            public void StartGenerate(BillboardLoD lod){
-                lod.data.globals = mm.globals;
-				lod.data.random = graph.random;
-                GetHeights(lod);
-            }
-
-            public void GetHeights(BillboardLoD lod){
-                lod.stop = new StopToken();
-                graph.Generate(lod.data, lod.stop);
-                this.FinalizeHeights(lod);
-            }
-
             public void RangeUpdate(Vector2 xRange, Vector2 zRange){
                 OnNewTileset(xRange, zRange);
-            }
-
-            public void FinalizeHeights(BillboardLoD lod){
-                TileData data = lod.data;
-                if (data.heights == null || 
-                    data.heights.rect.size != data.area.full.rect.size || 
-                    data.heights.worldPos != (Vector3)data.area.full.worldPos || 
-                    data.heights.worldSize != (Vector3)data.area.full.worldSize) 
-                        data.heights = new MatrixWorld(data.area.full.rect, data.area.full.worldPos, data.area.full.worldSize, data.globals.height);
-                data.heights.worldSize.y = data.globals.height;
-                data.heights.Fill(0);	
-
-                foreach ((HeightOutput200 output, MatrixWorld product, MatrixWorld biomeMask) 
-                    in data.Outputs<HeightOutput200,MatrixWorld,MatrixWorld> (typeof(HeightOutput200), inSubs:true) )
-                {
-                    if (data.heights == null) //height output not generated or received null result
-                        return;
-
-                    float val;
-                    float biomeVal;
-                    for (int a=0; a<data.heights.arr.Length; a++)
-                    {
-                        if (lod.stop!=null && lod.stop.stop) return;
-
-                        val = product.arr[a];
-                        biomeVal = biomeMask!=null ? biomeMask.arr[a] : 1;
-
-                        data.heights.arr[a] += val * biomeVal;
-                    }
-                }
             }
             public void Disconnect(){
                 if (leader != null){
