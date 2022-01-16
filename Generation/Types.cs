@@ -1,33 +1,62 @@
 using System;
-// using System.Collections;
-// using System.Collections.Generic;
-// using System.Collections.Concurrent;
-// using System.Linq;
-// using System.Text;
-// using System.Threading;
 using UnityEngine;
 using UnityEngine.Profiling;
 
 namespace xshazwar.Generation {
-    public class Coord: IEquatable<Coord>{
-        public int x;
-        public int z;
-        public Coord(int x, int z){
-            this.x = x;
-            this.z = z;
-        }
-        public override bool Equals(object obj) => obj is Coord other && this.Equals(other);
-        public bool Equals(Coord p) => x == p.x && z == p.z;
-
-
-
-    }
+    
     public enum Resolution {_6=6, _8=8, _17=17, _33=33, _65=65, _129=129, _257=257, _513=513, _1025=1025, _2049=2049 };
 
     public enum TileStatus {
-        ACTIVE, // dont care if draft or main really
+        ACTIVE,
         BB,
         CULLED
-
     };
+
+    public class GridPos: IEquatable<GridPos>{
+        public int x;
+        public int z;
+        public GridPos(int x, int z){
+            this.x = x;
+            this.z = z;
+        }
+        public override bool Equals(object obj) => obj is GridPos other && this.Equals(other);
+        public bool Equals(GridPos p) => x == p.x && z == p.z;
+        public override string ToString() => String.Join(", ", new {x, z} );
+        public override int GetHashCode() =>  x * 10000000 + z;
+    }
+
+    public class TileToken{
+        public int? id;
+        public GridPos coord;
+        public TileStatus status;
+
+        public TileToken(int? id, GridPos coord, TileStatus status){
+            this.id = id;
+            this.coord = coord;
+            this.status = status;
+        }
+
+        public TileToken(GridPos coord, TileStatus status): this(null, coord, status){}
+
+        public TileToken(TileToken t): this(t.id, t.coord, t.status){}
+
+        public override int GetHashCode(){
+            return coord.x * 1000000 + coord.z;
+        }
+
+        public void UpdateWith(TileToken t){
+            id = t.id;
+            status = t.status;
+        }
+
+        public void Recycle(int? id, GridPos coord, TileStatus status){
+            this.id = id;
+            this.coord = coord;
+            this.status = status;
+        }
+
+        public void Recycle(GridPos coord, TileStatus status){
+            Recycle(null, coord, status);
+        }
+    }
 }

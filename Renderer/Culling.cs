@@ -159,7 +159,9 @@ namespace xshazwar.Renderer {
             }){
                 try{
                     b.Release();
-                }catch{}
+                }catch{
+                    Debug.LogError("Could not release buffer!");
+                }
             }
         }
     }

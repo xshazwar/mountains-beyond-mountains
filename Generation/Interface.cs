@@ -10,11 +10,10 @@ namespace xshazwar.Generation {
     }
 
     public interface IReportStatus {
-        public Action<Coord> OnTileRendered {get; set;}
-        public Action<Coord> OnTileReleased {get; set;}
+        public Action<GridPos> OnTileRendered {get; set;}
+        public Action<GridPos> OnTileReleased {get; set;}
     }
-
     public interface IProvideHeights{
-        public void GetHeights(Coord pos, ref NativeSlice<float> values);
+        public void GetHeights(GridPos pos, ref NativeSlice<float> values);
     }
 }

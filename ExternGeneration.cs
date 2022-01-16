@@ -25,6 +25,7 @@ namespace xshazwar {
         public Camera camera;
         public Generation.Resolution resolution = Generation.Resolution._65;
         public ComputeShader cullShader;
+        public Tracker tracker = Tracker.MM;
         public int downscale = 1;
         public int margin = 2;
         public int startDistance = 0;
@@ -55,7 +56,7 @@ namespace xshazwar {
                 Debug.Log("Set procedural rules");
             }
 #endif
-            generator = new Generation.Generator(mapMagic, leader?.generator, renderer, resolution, margin, (Vector2)mapMagic.tileSize, endDistance, startDistance, camera.gameObject.transform.position);
+            generator = new Generation.Generator(mapMagic, leader?.generator, renderer, tracker, camera, resolution, margin, (Vector2)mapMagic.tileSize, endDistance, startDistance, camera.gameObject.transform.position);
         }
 
         void Start(){
@@ -75,8 +76,8 @@ namespace xshazwar {
             renderer = null;
         }
 
-        public Action<Generation.Coord> OnTileRendered {get; set;}
-        public Action<Generation.Coord> OnTileReleased {get; set;}
+        public Action<GridPos> OnTileRendered {get; set;}
+        public Action<GridPos> OnTileReleased {get; set;}
         
     }
 }

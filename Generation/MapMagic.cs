@@ -30,17 +30,17 @@ namespace xshazwar.Generation {
             this.data = new TileData();
         }
 
-        public static BillboardLoD CloneSettings(BillboardLoD o, int newID, Generation.Coord coord){
+        public static BillboardLoD CloneSettings(BillboardLoD o, int newID, GridPos coord){
             return new BillboardLoD(newID, coord, o.resolution, o.margin, new Vector2(o.tileSize.x, o.tileSize.z));
         }
 
         public BillboardLoD(int id): this(){
             this.id = id;
         }
-        public BillboardLoD(int id, Generation.Coord c, Resolution resolution, int margin, Vector2 tileSize): this(id){
+        public BillboardLoD(int id, GridPos c, Resolution resolution, int margin, Vector2 tileSize): this(id){
             setParams(c, resolution, margin, new Vector2D(tileSize.x, tileSize.y));
         }
-        public void setParams(Generation.Coord c, Resolution resolution, int margin, Vector2D tileSize){
+        public void setParams(GridPos c, Resolution resolution, int margin, Vector2D tileSize){
             this.coord = new Den.Tools.Coord(c.x, c.z);
             this.resolution = resolution;
             this.margin = margin;
@@ -48,7 +48,7 @@ namespace xshazwar.Generation {
             this.data.area = new Area(coord, (int)resolution, margin, tileSize);
         }
 
-        public void recycle(int id, Coord c){
+        public void recycle(int id, GridPos c){
             this.id = id;
             this.coord = new Den.Tools.Coord(c.x, c.z);
             this.data = new TileData();
@@ -62,12 +62,12 @@ namespace xshazwar.Generation {
             this.mm = mm;
         }
 
-        public void GetHeights(Generation.Coord pos, ref NativeSlice<float> values){
+        public void GetHeights(GridPos pos, ref NativeSlice<float> values){
 
         }
-        public IEnumerable<Generation.Coord> GetStartingTileCoords(){
+        public IEnumerable<GridPos> GetStartingTileCoords(){
             foreach(TerrainTile tile in mm.tiles.All()){
-                yield return new Generation.Coord(tile.coord.x, tile.coord.z);
+                yield return new GridPos(tile.coord.x, tile.coord.z);
             }
         }
         
@@ -113,19 +113,19 @@ namespace xshazwar.Generation {
         }
     }
     
-    public class MapMagicListener: IHandlePosition {
-        HashSet<Coord> active; 
+    public class MapMagicListener: IHandlePosition, IReportStatus {
+        HashSet<GridPos> active; 
         Vector2 xRange;
         Vector2 zRange;
         Vector2 xRangePrevious;
         Vector2 zRangePrevious;
 
         public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
-        public Action<Coord> OnTileActivated;
-        public Action<Coord> OnTileRemoved;
+        public Action<GridPos> OnTileRendered {get; set;}
+        public Action<GridPos> OnTileReleased {get; set;}
 
         public MapMagicListener(){
-            active = new HashSet<Coord>();
+            active = new HashSet<GridPos>();
             xRange = new Vector2();
             zRange = new Vector2();
             xRangePrevious = new Vector2();
@@ -150,17 +150,17 @@ namespace xshazwar.Generation {
 
         // public static Action<TerrainTile, bool, bool> OnLodSwitched;
         public void LodSwitched(TerrainTile tile, bool isMain, bool isDraft){
-            Generation.Coord coord= new Coord(tile.coord.x, tile.coord.z);
+            GridPos coord = new GridPos(tile.coord.x, tile.coord.z);
             if (!isMain && !isDraft){
                 lock(active){
                     active.Remove(coord);
-                    OnTileRemoved?.Invoke(coord);
+                    OnTileReleased?.Invoke(coord);
                     CalcActive();
                 }
             }else{
                 lock(active){
                     active.Add(coord);
-                    OnTileActivated?.Invoke(coord);
+                    OnTileRendered?.Invoke(coord);
                     CalcActive();
                 }
             }               
@@ -168,7 +168,7 @@ namespace xshazwar.Generation {
 
         public void Disconnect(){
             TerrainTile.OnLodSwitched -= LodSwitched;
-            active = new HashSet<Coord>();
+            active = new HashSet<GridPos>();
         }
     }
 }

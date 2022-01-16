@@ -14,83 +14,72 @@ using xshazwar.Renderer;
 
 namespace xshazwar.Generation {
 
-        public class TileToken{
-            public int? id;
-            public Coord coord;
-            public TileStatus status;
-
-            public TileToken(int? id, Coord coord, TileStatus status){
-                this.id = id;
-                this.coord = coord;
-                this.status = status;
-            }
-
-            public TileToken(Coord coord, TileStatus status): this(null, coord, status){}
-
-            public TileToken(TileToken t): this(t.id, t.coord, t.status){}
-
-            public override int GetHashCode(){
-                return coord.x * 1000000 + coord.z;
-            }
-
-            public void UpdateWith(TileToken t){
-                id = t.id;
-                status = t.status;
-            }
-
-            public void Recycle(int? id, Coord coord, TileStatus status){
-                this.id = id;
-                this.coord = coord;
-                this.status = status;
-            }
-
-            public void Recycle(Coord coord, TileStatus status){
-                Recycle(null, coord, status);
-            }
-
-
+        public enum Tracker {
+            MM,
+            SIMPLE
         }
 
         public class Generator : IHandlePosition, IReportStatus {
-            MapMagicObject mm;    
+            MapMagicObject mm;  
+            Tracker tracker;  
             MapMagicListener listener;
+            CameraPosition cameraPosition;
             MapMagicSource source;
             Generator leader;
             float size;
             int range;
             int ignoreSize;
             public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
-            public Action<Coord> OnTileRendered {get; set;}
-            public Action<Coord> OnTileReleased {get; set;}
+            public Action<GridPos> OnTileRendered {get; set;}
+            public Action<GridPos> OnTileReleased {get; set;}
+            private TaskFactory taskFactory;
             BillboardLoD prototype;
-            private Coord position;
-            private Coord newPosition;
+            private GridPos position;
+            private GridPos newPosition;
             private Vector2 xRange;
             private Vector2 zRange;
+            private int[] xRangeTiles;
+            private int[] zRangeTiles;
             private ConcurrentQueue<BillboardLoD> billboards;
-            private ConcurrentQueue<TileToken> tokens; //cache
-
             private ConcurrentQueue<TileToken> changeQueue;
 
-            private Dictionary<Coord, TileToken> currentState;
+            private Dictionary<GridPos, TileToken> currentState;
             private TerrainRenderer renderer;
             
-            public Generator(MapMagicObject mm, Generator leader, TerrainRenderer renderer, Resolution resolution, int margin, Vector2 tileSize, int range, int ignoreSize = 0, Vector3 startingPosition = new Vector3()){
+            public Generator(
+                MapMagicObject mm,
+                Generator leader,
+                TerrainRenderer renderer,
+                Tracker tracker,
+                Camera camera,
+                Resolution resolution,
+                int margin,
+                Vector2 tileSize,
+                int range,
+                int ignoreSize = 0,
+                Vector3 startingPosition = new Vector3()
+            ){
                 
                 this.mm = mm;
                 this.leader = leader;
+                this.tracker = tracker;
                 size = tileSize.x;
                 this.range = range;
                 this.ignoreSize = ignoreSize;
-                position = new Generation.Coord(0, 0);
-                newPosition = new Generation.Coord(0, 0);
-                Generation.Coord zero = new Generation.Coord(0, 0);
+                position = new GridPos(0, 0);
+                newPosition = new GridPos(0, 0);
+                GridPos zero = new GridPos(0, 0);
                 prototype = new BillboardLoD(-100, zero, resolution, margin, tileSize);
                 billboards = new ConcurrentQueue<BillboardLoD>();
-                tokens = new ConcurrentQueue<TileToken>();
                 changeQueue = new ConcurrentQueue<TileToken>();
-                currentState = new Dictionary<Coord, TileToken>();
+                currentState = new Dictionary<GridPos, TileToken>();
                 this.renderer = renderer;
+                taskFactory = new TaskFactory(
+                    new System.Threading.CancellationToken(),
+                    TaskCreationOptions.LongRunning,
+                    TaskContinuationOptions.DenyChildAttach,
+                    new LimitedConcurrencyLevelTaskScheduler(16));
+
                 source = new MapMagicSource(mm);
                 if (leader != null){
                     leader.OnRangeUpdated += RangeUpdate;
@@ -99,28 +88,37 @@ namespace xshazwar.Generation {
                 }
                 else{
                     listener = new MapMagicListener();
-                    listener.OnRangeUpdated += RangeUpdate;
-                    listener.OnTileActivated += TileActivated;
-                    listener.OnTileRemoved += TileRemoved;
+                    if (tracker == Tracker.MM){
+                        listener.OnRangeUpdated += RangeUpdate;
+                    }else{
+                        cameraPosition = new CameraPosition(camera, (int)tileSize.x, range);
+                        cameraPosition.OnRangeUpdated += RangeUpdate;
+                        // cameraPosition.Poll();
+                    }
+                    listener.OnTileRendered += TileActivated;
+                    listener.OnTileReleased += TileRemoved;
                     avoidStartingMMTiles();
                 }
-                
+                xRangeTiles = new int[2 * range + 1];
+                zRangeTiles = new int[2 * range + 1];
                 newPosition.x = (int) Math.Floor(startingPosition.x / size);
                 newPosition.z = (int) Math.Floor(startingPosition.z/ size);
                 OnUpdate();
             }
 
             public void OnNewTileset(Vector2 xRange, Vector2 zRange){
+                Debug.Log("OnNewTileset");
                 this.xRange = xRange;
                 this.zRange = zRange;
             }
 
             public void Update(){
+                // cameraPosition?.Poll();
                 newPosition.x = (int)(xRange.x + xRange.y) / 2;
                 newPosition.z = (int)(zRange.x + zRange.y) / 2;
                 if (!position.Equals(newPosition) || changeQueue.Count > 0){
                     OnUpdate();
-                    position = newPosition;
+                    position.x = newPosition.x; position.z = newPosition.z;
                     OnRangeUpdated?.Invoke(this.xRange, this.zRange);
                 }
             }
@@ -134,9 +132,6 @@ namespace xshazwar.Generation {
                     CullGrid();
                     UnityEngine.Profiling.Profiler.EndSample();
                 }
-                UnityEngine.Profiling.Profiler.BeginSample("StartJobs");
-                StartJobs();
-                UnityEngine.Profiling.Profiler.EndSample();
                 UnityEngine.Profiling.Profiler.BeginSample("Fill Grid");
                 FillGrid();
                 UnityEngine.Profiling.Profiler.EndSample();
@@ -156,10 +151,6 @@ namespace xshazwar.Generation {
                 }
             }
 
-            public async void StartJobs(){
-
-            }
-
             public bool inIgnore(int x, int z, int posX, int posZ, int ignore){
                 return (
                     x > posX - ignore &&
@@ -175,22 +166,19 @@ namespace xshazwar.Generation {
                         z > posZ + _range);
             }
 
-            public int[] GetRange(int pos, int _range){
-                int[] v = new int[(2 * _range) + 1];
+            public void GetRange(int pos, int _range, ref int[] v){
                 for (int i = 0; i <= 2 * _range; i++ ){
-                    v[i] = i - _range;
+                    v[i] = pos + i  - _range;
                 }
-                return v;
             }
 
             public void FillGrid(){
-                Coord t = new Generation.Coord(0,0);
+                GridPos t = new GridPos(0,0);
                 // enqueue new tiles
-                int[] xRange = GetRange(newPosition.x, range);
-                int[] zRange = GetRange(newPosition.z, range);
-
-                foreach(int x in xRange){
-                    foreach(int z in zRange){
+                GetRange(newPosition.x, range, ref xRangeTiles);
+                GetRange(newPosition.z, range, ref zRangeTiles);
+                foreach(int x in xRangeTiles){
+                    foreach(int z in zRangeTiles){
                         // ignore exclusion zone && core tiles
                         UnityEngine.Profiling.Profiler.BeginSample("CheckIgnore");
                         if (inIgnore(x, z, newPosition.x, newPosition.z, ignoreSize)){
@@ -203,12 +191,12 @@ namespace xshazwar.Generation {
                         if (!currentState.ContainsKey(t)){
                             UnityEngine.Profiling.Profiler.EndSample();
                             UnityEngine.Profiling.Profiler.BeginSample("GetToken");
-                            TileToken nt = new TileToken(new Coord(t.x, t.z), TileStatus.BB);
+                            TileToken nt = new TileToken(new GridPos(x, z), TileStatus.BB);
                             UnityEngine.Profiling.Profiler.EndSample();
                             UnityEngine.Profiling.Profiler.BeginSample("UpdateState");
                             currentState[nt.coord] = nt;
                             UnityEngine.Profiling.Profiler.EndSample();
-                            UnityEngine.Profiling.Profiler.BeginSample("Enqueue Token Gen");
+                            UnityEngine.Profiling.Profiler.BeginSample("Enqueue Height Gen");
                             EnqueueTileRequest(nt);
                             UnityEngine.Profiling.Profiler.EndSample();
                         }else{
@@ -234,16 +222,16 @@ namespace xshazwar.Generation {
             }
 
             public void avoidStartingMMTiles(){
-                foreach(Coord c in source.GetStartingTileCoords()){
+                foreach(GridPos c in source.GetStartingTileCoords()){
                     TileActivated(c);
                 }
                 
             }
             public void EnqueueTileRequest(TileToken token){
-                Task.Run( () => RequestTile(this.renderer, token) );
+                taskFactory.StartNew( () => RequestTile(this.renderer, token) );
             }
 
-            public TileToken GetToken(Coord coord, TileStatus status){
+            public TileToken GetToken(GridPos coord, TileStatus status){
                 return new TileToken(coord, status);
             }
 
@@ -327,20 +315,19 @@ namespace xshazwar.Generation {
 
             public void RequestTile(TerrainRenderer renderer, TileToken token){
                 int nextID = renderer.requestTileId();
-                TileToken newToken = new TileToken(token.coord, TileStatus.BB);
-                newToken.id = nextID;
+                token.id = nextID;
                 BillboardLoD lod;
                 if (!billboards.TryDequeue(out lod)){
-                    lod = BillboardLoD.CloneSettings(prototype, nextID, newToken.coord);
+                    lod = BillboardLoD.CloneSettings(prototype, nextID, token.coord);
                 }else{
-                    lod.recycle(nextID, newToken.coord);
+                    lod.recycle(nextID, token.coord);
                 }
                 source.StartGenerate(lod);
                 renderer.setBillboardHeights(lod.id, lod.data.heights.arr);
-                renderer.setBillboardPosition(nextID, newToken.coord.x * size, newToken.coord.z * size, 0f, false);
+                renderer.setBillboardPosition(nextID, token.coord.x * size, token.coord.z * size, 0f, false);
                 billboards.Enqueue(lod);
-                changeQueue.Enqueue(newToken);
-                OnTileRendered?.Invoke(newToken.coord);
+                changeQueue.Enqueue(token);
+                OnTileRendered?.Invoke(token.coord);
             }
 
             public void ReleaseTile(TerrainRenderer renderer, int tokenID){
@@ -355,11 +342,11 @@ namespace xshazwar.Generation {
                 renderer.unhideBillboard(tokenID);
             }
 
-            public void TileActivated(Coord coord){
+            public void TileActivated(GridPos coord){
                 changeQueue.Enqueue(new TileToken(coord, TileStatus.ACTIVE));
             }
 
-            public void TileRemoved(Coord coord){
+            public void TileRemoved(GridPos coord){
                 changeQueue.Enqueue(new TileToken(coord, TileStatus.CULLED));
             }
             public void RangeUpdate(Vector2 xRange, Vector2 zRange){
@@ -372,9 +359,14 @@ namespace xshazwar.Generation {
                     leader.OnTileReleased -= TileRemoved;
                 }
                 else{
-                    listener.OnRangeUpdated -= RangeUpdate;
-                    listener.OnTileActivated -= TileActivated;
-                    listener.OnTileRemoved -= TileRemoved;
+                    if (tracker == Tracker.MM){
+                        listener.OnRangeUpdated -= RangeUpdate;
+                    }else{
+                        
+                        cameraPosition.OnRangeUpdated -= RangeUpdate;
+                    }
+                    listener.OnTileRendered -= TileActivated;
+                    listener.OnTileReleased -= TileRemoved;
                     listener.Disconnect();
                 }
                 

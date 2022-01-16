@@ -10,7 +10,7 @@ using UnityEngine.Rendering;
 namespace xshazwar.Renderer
 {
     
-    public class TerrainRenderer {
+    public class TerrainRenderer : IRenderTiles {
 
 
         public Mesh mesh;
@@ -48,7 +48,7 @@ namespace xshazwar.Renderer
         private ConcurrentQueue<int> offsetUpdates = new ConcurrentQueue<int>();
         ConcurrentQueue<int> billboardIds = new ConcurrentQueue<int>();
 
-        public bool isReady = false;
+        public bool isReady {get; set;}
 
         private int minAvailableTiles = 10000;
 
@@ -64,6 +64,7 @@ namespace xshazwar.Renderer
         }
 
         public TerrainRenderer(ComputeShader _cpt, Material _material, int range, int downscale, int resolution, int overlap, float _tileSize, float _height, int internalGap = 0, Color? color = null){
+            isReady = false;
             tileSize = _tileSize;
             height = _height;
             material = _material;
@@ -234,7 +235,9 @@ namespace xshazwar.Renderer
             }){
                 try{
                     b.Release();
-                }catch{}
+                }catch{
+                    Debug.LogError("Could not release buffer!");
+                }
             }
             gpuCull.Destroy();
             fovBuffer = null;
