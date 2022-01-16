@@ -9,13 +9,10 @@ using UnityEngine.Rendering;
 
 namespace xshazwar.Renderer
 {
-    
     public class TerrainRenderer : IRenderTiles {
-
-
         public Mesh mesh;
         public int meshResolution = 65;
-        public int meshDownscale = 4;
+        public int meshDownscale = 1;
         public int meshOverlap = 3;
         public int terrainRange = 3;
         public int terrainCount = 9;
@@ -48,8 +45,8 @@ namespace xshazwar.Renderer
         private ConcurrentQueue<int> offsetUpdates = new ConcurrentQueue<int>();
         ConcurrentQueue<int> billboardIds = new ConcurrentQueue<int>();
 
-        public bool isReady {get; set;}
-
+        private bool ready = false;
+        
         private int minAvailableTiles = 10000;
 
         private Vector3 __extent = new Vector3(100000f, 5000f, 100000f);
@@ -64,7 +61,7 @@ namespace xshazwar.Renderer
         }
 
         public TerrainRenderer(ComputeShader _cpt, Material _material, int range, int downscale, int resolution, int overlap, float _tileSize, float _height, int internalGap = 0, Color? color = null){
-            isReady = false;
+            ready = false;
             tileSize = _tileSize;
             height = _height;
             material = _material;
@@ -131,7 +128,11 @@ namespace xshazwar.Renderer
             
             gpuCull.init(terrainCount, tileSize, height, mesh.GetIndexCount(0));
             Debug.Log("GPUTerrain Ready");
-            isReady = true;
+            ready = true;
+        }
+
+        public bool isReady() {
+            return ready;
         }
 
         public void setCullingGetInstanceCount(Camera camera){
@@ -194,8 +195,8 @@ namespace xshazwar.Renderer
         }
 
         public void UpdateFunctionOnGPU (Camera camera) {
-            if (!isReady || material == null){
-                Debug.Log($"Renderer not ready {isReady} => {material}");
+            if (!ready || material == null){
+                Debug.Log($"Renderer not ready {ready} => {material}");
                 return;
             }
             int idx = 0;
@@ -223,7 +224,7 @@ namespace xshazwar.Renderer
         }
 
         public void flush(){
-            isReady = false;
+            ready = false;
             // fov_array = null;
             offset_data_arr = null;
             all_heights_arr = null;

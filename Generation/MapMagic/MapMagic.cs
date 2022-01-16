@@ -1,3 +1,6 @@
+// Requires MM2
+#if MAPMAGIC2
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -16,7 +19,9 @@ using MapMagic.Nodes;
 using MapMagic.Nodes.MatrixGenerators;
 using MapMagic.Terrains;
 
-namespace xshazwar.Generation {
+using xshazwar.Generation;
+
+namespace xshazwar.Generation.MapMagic {
     
     public class BillboardLoD{            
         public int id;
@@ -31,14 +36,14 @@ namespace xshazwar.Generation {
         }
 
         public static BillboardLoD CloneSettings(BillboardLoD o, int newID, GridPos coord){
-            return new BillboardLoD(newID, coord, o.resolution, o.margin, new Vector2(o.tileSize.x, o.tileSize.z));
+            return new BillboardLoD(newID, coord, o.resolution, o.margin, o.tileSize.x);
         }
 
         public BillboardLoD(int id): this(){
             this.id = id;
         }
-        public BillboardLoD(int id, GridPos c, Resolution resolution, int margin, Vector2 tileSize): this(id){
-            setParams(c, resolution, margin, new Vector2D(tileSize.x, tileSize.y));
+        public BillboardLoD(int id, GridPos c, Resolution resolution, int margin, float tileSize): this(id){
+            setParams(c, resolution, margin, new Vector2D(tileSize, tileSize));
         }
         public void setParams(GridPos c, Resolution resolution, int margin, Vector2D tileSize){
             this.coord = new Den.Tools.Coord(c.x, c.z);
@@ -58,31 +63,43 @@ namespace xshazwar.Generation {
     
     public class MapMagicSource: IProvideHeights {
         MapMagicObject mm;
-        public MapMagicSource(MapMagicObject mm){
+        BillboardLoD prototype;
+        private ConcurrentQueue<BillboardLoD> billboards;
+
+        public MapMagicSource(MapMagicObject mm, Resolution resolution, int margin, float tileSize){
             this.mm = mm;
+            billboards = new ConcurrentQueue<BillboardLoD>();
+            prototype = new BillboardLoD(-100, new GridPos(0, 0), resolution, margin, tileSize);
         }
 
-        public void GetHeights(GridPos pos, ref NativeSlice<float> values){
-
-        }
         public IEnumerable<GridPos> GetStartingTileCoords(){
             foreach(TerrainTile tile in mm.tiles.All()){
                 yield return new GridPos(tile.coord.x, tile.coord.z);
             }
         }
         
+        public void GetHeights(GridPos pos, ref float[] values){
+            BillboardLoD lod;
+            if (!billboards.TryDequeue(out lod)){
+                lod = BillboardLoD.CloneSettings(prototype, -1, pos);
+            }else{
+                lod.recycle(-1, pos);
+            }
+            StartGenerate(lod, ref values);
+            billboards.Enqueue(lod);
+        }
 
-        public void StartGenerate(BillboardLoD lod){
+        public void StartGenerate(BillboardLoD lod, ref float[] values){
             lod.data.globals = mm.globals;
             lod.data.random = mm.graph.random;
-            GetHeights(lod);
+            GenerateHeights(lod, ref values);
         }
-        public void GetHeights(BillboardLoD lod){
+        public void GenerateHeights(BillboardLoD lod, ref float[] values){
                 lod.stop = new StopToken();
                 mm.graph.Generate(lod.data, lod.stop);
-                this.FinalizeHeights(lod);
+                this.FinalizeHeights(lod, ref values);
             }
-        public void FinalizeHeights(BillboardLoD lod){
+        public void FinalizeHeights(BillboardLoD lod, ref float[] values){
             TileData data = lod.data;
             if (data.heights == null || 
                 data.heights.rect.size != data.area.full.rect.size || 
@@ -107,7 +124,7 @@ namespace xshazwar.Generation {
                     val = product.arr[a];
                     biomeVal = biomeMask!=null ? biomeMask.arr[a] : 1;
 
-                    data.heights.arr[a] += val * biomeVal;
+                    values[a] += val * biomeVal;
                 }
             }
         }
@@ -120,7 +137,7 @@ namespace xshazwar.Generation {
         Vector2 xRangePrevious;
         Vector2 zRangePrevious;
 
-        public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
+        public Action<GridPos> OnRangeUpdated {get; set;}
         public Action<GridPos> OnTileRendered {get; set;}
         public Action<GridPos> OnTileReleased {get; set;}
 
@@ -144,7 +161,11 @@ namespace xshazwar.Generation {
             zRange.x = active.Select(v => v.z).Min();
             zRange.y = active.Select(v => v.z).Max();
             if (xRangePrevious != xRange || zRangePrevious != zRange){
-                OnRangeUpdated?.Invoke(xRange, zRange);
+                GridPos center = new GridPos(
+                    (int) (xRange.x + xRange.y) / 2,
+                    (int) (zRange.x + zRange.y) / 2
+                );
+                OnRangeUpdated?.Invoke(center);
             }
         }
 
@@ -172,3 +193,4 @@ namespace xshazwar.Generation {
         }
     }
 }
+#endif

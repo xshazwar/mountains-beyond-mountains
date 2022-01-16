@@ -2,7 +2,8 @@ namespace xshazwar.Renderer {
 
     public interface IRenderTiles{
         
-        public bool isReady {get; set;}
+        public bool isReady();
+        public int requestTileId();
         public void hideBillboard(int tokenID);
         public void unhideBillboard(int tokenID);
         public void releaseTile(int tokenID);

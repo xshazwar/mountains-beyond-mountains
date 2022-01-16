@@ -10,19 +10,15 @@ using Unity.Collections;
 namespace xshazwar.Generation {
     class CameraPosition : IHandlePosition{
         private Camera camera;
-        private int tileSize;
-        private int range;
-        private float extent;
+        private float tileSize;
         private Vector2 lastUpdate;
         private float updateDistance = 250f;
-        public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
+        public Action<GridPos> OnRangeUpdated {get; set;}
         private Vector2 _query;
 
-        public CameraPosition(Camera camera, int tileSize, int range){
+        public CameraPosition(Camera camera, float tileSize){
             this.camera = camera;
             this.tileSize = tileSize;
-            this.range = range;
-            this.extent = (float) range * tileSize;
             _query = new Vector2(0, 0);
             updatePosition();
         }
@@ -43,10 +39,10 @@ namespace xshazwar.Generation {
             return false;
         }
         private void updatePosition(){
-            float x = Mathf.Floor(lastUpdate.x / (float) tileSize);  
-            float z = Mathf.Floor(lastUpdate.y / (float) tileSize);
+            float x = Mathf.Floor(lastUpdate.x / tileSize);  
+            float z = Mathf.Floor(lastUpdate.y / tileSize);
             Debug.Log($"Tile {x},{z}");
-            OnRangeUpdated?.Invoke(new Vector2(x * tileSize - extent, x * tileSize + extent), new Vector2(z * tileSize - extent, z * tileSize + extent));
+            OnRangeUpdated?.Invoke(new GridPos((int) x, (int) z));
         }
     }
 }

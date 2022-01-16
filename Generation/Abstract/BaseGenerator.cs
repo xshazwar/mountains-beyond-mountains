@@ -8,67 +8,95 @@ using System.Threading.Tasks;
 using UnityEngine.Profiling;
 using UnityEngine;
 
+using xshazwar;
 using xshazwar.Generation;
 using xshazwar.Renderer;
 
 namespace xshazwar.Generation.Base {
     
-    [RequireComponent(typeof(GenerationGlobals))]
+    [RequireComponent(typeof(GenerationLocals))]
     public abstract class BaseGenerator : MonoBehaviour, IHandlePosition, IReportStatus {
+        // settings
+        public GenerationGlobals globals;
+        public GenerationLocals locals;
+        
         // signal propogation
-        public Action<Vector2, Vector2> OnRangeUpdated {get; set;}
+        public Action<GridPos> OnRangeUpdated {get; set;}
         public Action<GridPos> OnTileRendered {get; set;}
         public Action<GridPos> OnTileReleased {get; set;}
 
         // partner components
-        public IReportStatus parent;
-        public IHandlePosition positionSource;
-        public IProvideHeights heightSource;
-        public IRenderTiles renderer;
+        [SerializeField]
+        [RequireInterface(typeof(IReportStatus))]
+        public UnityEngine.Object parent;
+        private IReportStatus _parent;
+        
+        [SerializeField]
+        [RequireInterface(typeof(IHandlePosition))]
+        public UnityEngine.Object positionSource;
+        public IHandlePosition _positionSource;
+
+        [SerializeField]
+        [RequireInterface(typeof(IProvideHeights))]
+        public UnityEngine.Object heightSource;
+        public IProvideHeights _heightSource;
+
+        [SerializeField]
+        [RequireInterface(typeof(IRenderTiles))]
+        public UnityEngine.Object renderer;
+        public IRenderTiles _renderer;
 
         // settings
-        public float size;  // tileSize
-        int range;          // tile draw diatance
-        int ignoreSize;     // parent internal draw size
+        protected float size;  // tileSize
+        protected int range;          // tile draw diatance
+        protected int ignoreSize;     // parent internal draw size
+        protected int heightElementCount;
 
         // current state
-        private GridPos position;
-        private GridPos newPosition;
-        private Vector2 xRange;
-        private Vector2 zRange;
-        private ConcurrentQueue<TileToken> changeQueue;
-        private Dictionary<GridPos, TileToken> currentState;
+        protected GridPos position;
+        protected GridPos newPosition;
+        protected ConcurrentQueue<TileToken> changeQueue;
+        protected Dictionary<GridPos, TileToken> currentState;
         
         // gc avoidance cache 
-        private int[] xRangeTiles;
-        private int[] zRangeTiles;
+        protected int[] xRangeTiles;
+        protected int[] zRangeTiles;
 
         // multithreading
-        private TaskFactory taskFactory;
+        protected TaskFactory taskFactory;
 
         public void Init(){
-
+            taskFactory = new TaskFactory(
+                new System.Threading.CancellationToken(),
+                TaskCreationOptions.LongRunning,
+                TaskContinuationOptions.DenyChildAttach,
+                new LimitedConcurrencyLevelTaskScheduler(16));
+            position = new GridPos(0, 0);
+            newPosition = new GridPos(0, 0);
+            changeQueue = new ConcurrentQueue<TileToken>();
+            currentState = new Dictionary<GridPos, TileToken>();
+            xRangeTiles = new int[2 * range + 1];
+            zRangeTiles = new int[2 * range + 1];
+            heightElementCount = (int) locals.resolution * (int) locals.resolution;
         }
 
         // set communication sources
-        public void SetParent(IReportStatus parent){
-            this.parent = parent;
-            this.parent.OnTileRendered += TileActivated;
-            this.parent.OnTileReleased += TileRemoved;
+        public void SetParent(){
+            this._parent.OnTileRendered += TileActivated;
+            this._parent.OnTileReleased += TileRemoved;
         }
 
-        public void SetPositionSource(IHandlePosition positionSource){
-            this.positionSource = positionSource;
-            this.positionSource.OnRangeUpdated += RangeUpdate;
+        void SetPositionSource(IHandlePosition _positionSource){
+            this._positionSource.OnRangeUpdated += RangeUpdate;
         }
 
-        public void SetDataSource(IProvideHeights heightSource){
-            this.heightSource = heightSource;
-        }
+        // public void SetDataSource(IProvideHeights _heightSource){
+        //     this._heightSource = _heightSource;
+        // }
 
-        public void SetRenderer(IRenderTiles renderer){
-            this.renderer = renderer;
-        }
+        // public void SetRenderer(IRenderTiles _renderer){
+        //     this._renderer = _renderer;
+        // }
         
         // action handlers
         protected void TileActivated(GridPos coord){
@@ -77,48 +105,91 @@ namespace xshazwar.Generation.Base {
         protected void TileRemoved(GridPos coord){
                 changeQueue.Enqueue(new TileToken(coord, TileStatus.CULLED));
             }
-        protected void RangeUpdate(Vector2 xRange, Vector2 zRange){
-            OnNewTileset(xRange, zRange);
+        protected void RangeUpdate(GridPos coord){
+            this.newPosition.x = coord.x;
+            this.newPosition.z = coord.z;
         }
 
-        // TODO REFACTOR OUT
-        public void OnNewTileset(Vector2 xRange, Vector2 zRange){
-            Debug.Log("OnNewTileset");
-            this.xRange = xRange;
-            this.zRange = zRange;
-        }
-        // renderer control
+        // _renderer control
         public void ReleaseTile(int tokenID){
-            renderer.releaseTile(tokenID);
+            _renderer.releaseTile(tokenID);
         }
 
         public void HideTile(int tokenID){
-            renderer.hideBillboard(tokenID);
+            _renderer.hideBillboard(tokenID);
         }
 
         public void ShowTile(int tokenID){
-            renderer.unhideBillboard(tokenID);
+            _renderer.unhideBillboard(tokenID);
         }
 
         // !abstract methods!
 
         public abstract void RequestTile(TileToken token);
 
+        // setup
+
+        #if UNITY_EDITOR
+        protected void OnValidate(){
+            if (globals == null){
+                globals = gameObject.transform.parent.gameObject.GetComponent<GenerationGlobals>();
+            }
+            if(locals == null){
+                locals = GetComponent<GenerationLocals>();
+            }
+            if(globals == null){
+                throw new Exception("Requires Global Settings");
+            }
+            if(locals == null){
+                throw new Exception("Requires Local Settings");
+            }
+            if(renderer == null){
+                throw new Exception("Renderer Required");
+            }
+            _renderer = (IRenderTiles) renderer;
+            if (positionSource == null){
+                throw new Exception("Position Source Required");
+            }
+            _positionSource = (IHandlePosition) positionSource;
+            if (heightSource == null){
+                throw new Exception("Height Source Required");
+            }
+            _heightSource = (IProvideHeights) heightSource;
+        }
+        #endif
+
+        protected void OnEnable(){
+            size = globals.tileSize;
+            range = locals.terrainEnd;
+            ignoreSize = locals.terrainStart;
+            Init();
+            SetPositionSource(this._positionSource);
+            if (this._parent != null){
+                SetParent();
+            }else{
+                Debug.LogWarning("Unless this LoD is the first it should have a parent");
+            }
+                
+        }
+
+        // teardown
+
+        protected void OnDisable(){
+            Disconnect();
+        }
+
         // update loop handling
 
         public void Update(){
-            // cameraPosition?.Poll();
-            newPosition.x = (int)(xRange.x + xRange.y) / 2;
-            newPosition.z = (int)(zRange.x + zRange.y) / 2;
             if (!position.Equals(newPosition) || changeQueue.Count > 0){
                 OnUpdate();
                 position.x = newPosition.x; position.z = newPosition.z;
-                OnRangeUpdated?.Invoke(this.xRange, this.zRange);
+                OnRangeUpdated?.Invoke(position);
             }
         }
 
         public void OnUpdate(){
-            if (!renderer.isReady){
+            if (_renderer == null || !_renderer.isReady()){
                 Debug.Log("Renderer not ready for work...");
                 return;
             }
@@ -269,12 +340,12 @@ namespace xshazwar.Generation.Base {
         }
 
         public void Disconnect(){
-            if (parent != null){
-                parent.OnTileRendered -= TileActivated;
-                parent.OnTileReleased -= TileRemoved;
+            if (_parent != null){
+                _parent.OnTileRendered -= TileActivated;
+                _parent.OnTileReleased -= TileRemoved;
             }
-            if (positionSource != null){
-                positionSource.OnRangeUpdated -= RangeUpdate;
+            if (_positionSource != null){
+                _positionSource.OnRangeUpdated -= RangeUpdate;
             }
         }
     }

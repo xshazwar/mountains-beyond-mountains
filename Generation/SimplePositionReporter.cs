@@ -1,18 +1,21 @@
+using System;
 using UnityEngine;
 
 namespace xshazwar.Generation {
-    public class SimplePositionReporter : MonoBehaviour {
+    
+    [RequireComponent(typeof(GenerationGlobals))]
+    public class SimplePositionReporter : MonoBehaviour, IHandlePosition  {
 
-        public Camera camera;
-        public int tileSize = 1000;
-        public int range = 3;
         private CameraPosition reporter;
+        public Action<GridPos> OnRangeUpdated {get; set;}
         
-        void NewRange(Vector2 x, Vector2 z){
-            Debug.Log($"New Position reported x:{x} z:{z}");
+        void NewRange(GridPos coord){
+            Debug.Log($"New Position reported {coord}");
+            OnRangeUpdated?.Invoke(coord);
         }
         void OnEnable(){
-            reporter= new CameraPosition(camera, tileSize, range);
+            GenerationGlobals globals = GetComponent<GenerationGlobals>();
+            reporter = new CameraPosition(globals.camera, globals.tileSize);
             reporter.OnRangeUpdated += NewRange;
         }
         void Start(){}
