@@ -95,10 +95,11 @@ namespace xshazwar.Generation.MapMagic {
             GenerateHeights(lod, ref values);
         }
         public void GenerateHeights(BillboardLoD lod, ref float[] values){
-                lod.stop = new StopToken();
-                mm.graph.Generate(lod.data, lod.stop);
-                this.FinalizeHeights(lod, ref values);
-            }
+            lod.stop = new StopToken();
+            mm.graph.Generate(lod.data, lod.stop);
+            this.FinalizeHeights(lod, ref values);
+        }
+
         public void FinalizeHeights(BillboardLoD lod, ref float[] values){
             TileData data = lod.data;
             if (data.heights == null || 
@@ -108,6 +109,7 @@ namespace xshazwar.Generation.MapMagic {
                     data.heights = new MatrixWorld(data.area.full.rect, data.area.full.worldPos, data.area.full.worldSize, data.globals.height);
             data.heights.worldSize.y = data.globals.height;
             data.heights.Fill(0);	
+
 
             foreach ((HeightOutput200 output, MatrixWorld product, MatrixWorld biomeMask) 
                 in data.Outputs<HeightOutput200,MatrixWorld,MatrixWorld> (typeof(HeightOutput200), inSubs:true) )
@@ -123,10 +125,10 @@ namespace xshazwar.Generation.MapMagic {
 
                     val = product.arr[a];
                     biomeVal = biomeMask!=null ? biomeMask.arr[a] : 1;
-
-                    values[a] += val * biomeVal;
+                    data.heights.arr[a] += val * biomeVal;
                 }
             }
+            values = data.heights.arr;
         }
     }
     

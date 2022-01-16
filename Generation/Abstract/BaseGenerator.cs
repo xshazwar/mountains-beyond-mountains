@@ -194,6 +194,7 @@ namespace xshazwar.Generation.Base {
                 return;
             }
             if (!position.Equals(newPosition)){
+                Debug.Log("Cull!");
                 UnityEngine.Profiling.Profiler.BeginSample("Cull Grid");
                 CullGrid();
                 UnityEngine.Profiling.Profiler.EndSample();
