@@ -1,5 +1,10 @@
 using System;
+using Unity.Collections;
 using UnityEngine;
+
+#if __MICROSPLAT__
+using xshazwar.integration.microsplat;
+#endif
 
 using xshazwar.Generation;
 
@@ -17,6 +22,11 @@ namespace xshazwar.Renderer
 
         #if UNITY_EDITOR
         void OnValidate(){
+            Validate();
+        }
+        #endif
+
+        public void Validate(){
             if (globals == null){
                 globals = gameObject.transform.parent.gameObject.GetComponent<GenerationGlobals>();
             }
@@ -35,17 +45,9 @@ namespace xshazwar.Renderer
                 throw new Exception("Culling shader not set in globals");
             }
         }
-        #endif
 
         void OnEnable(){
-            if(globals == null){
-                globals = GetComponent<GenerationGlobals>();
-            }
-            if(locals == null){
-                locals = GetComponent<GenerationLocals>();
-            }
-            camera = globals.camera;
-            cullShader = globals.cullingComputeShaders;
+            Validate();
             if (renderer == null){
                 renderer = new TerrainRenderer(
                     Instantiate(cullShader),
@@ -60,9 +62,9 @@ namespace xshazwar.Renderer
                     locals.debugColor
                 );
             }
-            MSProceduralRules procRules = gameObject.GetComponent<MSProceduralRules>();
             #if __MICROSPLAT__
-            if (procRules != null && procRules.procTexCfg != null){
+            MSProceduralRules procRules = gameObject.GetComponent<MSProceduralRules>();
+            if (procRules != null){
                 procRules.setBuffersFromRules(renderer.materialProps);
                 Debug.Log("Set procedural rules");
             }
@@ -90,11 +92,14 @@ namespace xshazwar.Renderer
         public int requestTileId(){
             return renderer.requestTileId();
         }
+        public void RegisterTileUpdated(int id){
+            renderer.RegisterTileUpdated(id);
+        }
+        public NativeSlice<float> getTileHeights(int id){
+            return renderer.getTileHeights(id);
+        }
         public void setBillboardPosition(int id, float x_pos, float z_pos, float y_off, bool waitForHeight=true){
             renderer.setBillboardPosition(id, x_pos, z_pos, y_off, waitForHeight);
-        }
-        public void setBillboardHeights(int id, float[] heights){
-            renderer.setBillboardHeights(id, heights);
         }
         public void hideBillboard(int id){
             renderer.hideBillboard(id);

@@ -13,7 +13,7 @@ using xshazwar.Generation;
 using xshazwar.Renderer;
 
 namespace xshazwar.Generation.Base {
-    
+
     [RequireComponent(typeof(GenerationLocals))]
     public abstract class BaseGenerator : MonoBehaviour, IHandlePosition, IReportStatus {
         // settings
@@ -61,6 +61,7 @@ namespace xshazwar.Generation.Base {
         // gc avoidance cache 
         protected int[] xRangeTiles;
         protected int[] zRangeTiles;
+        protected TokenPool tokenPool;
 
         // multithreading
         protected TaskFactory taskFactory;
@@ -70,7 +71,8 @@ namespace xshazwar.Generation.Base {
                 new System.Threading.CancellationToken(),
                 TaskCreationOptions.LongRunning,
                 TaskContinuationOptions.DenyChildAttach,
-                new LimitedConcurrencyLevelTaskScheduler(16));
+                new LimitedConcurrencyLevelTaskScheduler(12));
+            tokenPool = new TokenPool();
             position = new GridPos(0, 0);
             newPosition = new GridPos(0, 0);
             changeQueue = new ConcurrentQueue<TileToken>();
@@ -86,24 +88,16 @@ namespace xshazwar.Generation.Base {
             this._parent.OnTileReleased += TileRemoved;
         }
 
-        void SetPositionSource(IHandlePosition _positionSource){
-            this._positionSource.OnRangeUpdated += RangeUpdate;
+        void SetPositionSource(){
+            _positionSource.OnRangeUpdated += RangeUpdate;
         }
-
-        // public void SetDataSource(IProvideHeights _heightSource){
-        //     this._heightSource = _heightSource;
-        // }
-
-        // public void SetRenderer(IRenderTiles _renderer){
-        //     this._renderer = _renderer;
-        // }
-        
+    
         // action handlers
         protected void TileActivated(GridPos coord){
-            changeQueue.Enqueue(new TileToken(coord, TileStatus.ACTIVE));
+            changeQueue.Enqueue(tokenPool.Get(coord, TileStatus.ACTIVE));
         }
         protected void TileRemoved(GridPos coord){
-                changeQueue.Enqueue(new TileToken(coord, TileStatus.CULLED));
+                changeQueue.Enqueue(tokenPool.Get(coord, TileStatus.CULLED));
             }
         protected void RangeUpdate(GridPos coord){
             this.newPosition.x = coord.x;
@@ -131,6 +125,11 @@ namespace xshazwar.Generation.Base {
 
         #if UNITY_EDITOR
         protected void OnValidate(){
+            Validate();
+        }
+        #endif
+
+        protected void Validate(){
             if (globals == null){
                 globals = gameObject.transform.parent.gameObject.GetComponent<GenerationGlobals>();
             }
@@ -156,14 +155,14 @@ namespace xshazwar.Generation.Base {
             }
             _heightSource = (IProvideHeights) heightSource;
         }
-        #endif
 
         protected void OnEnable(){
+            Validate();
             size = globals.tileSize;
             range = locals.terrainEnd;
             ignoreSize = locals.terrainStart;
             Init();
-            SetPositionSource(this._positionSource);
+            SetPositionSource();
             if (this._parent != null){
                 SetParent();
             }else{
@@ -194,7 +193,6 @@ namespace xshazwar.Generation.Base {
                 return;
             }
             if (!position.Equals(newPosition)){
-                Debug.Log("Cull!");
                 UnityEngine.Profiling.Profiler.BeginSample("Cull Grid");
                 CullGrid();
                 UnityEngine.Profiling.Profiler.EndSample();
@@ -237,7 +235,7 @@ namespace xshazwar.Generation.Base {
                     if (!currentState.ContainsKey(t)){
                         UnityEngine.Profiling.Profiler.EndSample();
                         UnityEngine.Profiling.Profiler.BeginSample("GetToken");
-                        TileToken nt = new TileToken(new GridPos(x, z), TileStatus.BB);
+                        TileToken nt = tokenPool.Get(new GridPos(x, z), TileStatus.BB);
                         UnityEngine.Profiling.Profiler.EndSample();
                         UnityEngine.Profiling.Profiler.BeginSample("UpdateState");
                         currentState[nt.coord] = nt;
@@ -260,7 +258,7 @@ namespace xshazwar.Generation.Base {
                 ))
             )).ToList();
             foreach(TileToken update in removal){
-                TileToken cull = new TileToken(update);
+                TileToken cull = tokenPool.Get(update.coord, update.status);
                 cull.status = TileStatus.CULLED;
                 changeQueue.Enqueue(cull);
             }
@@ -312,6 +310,7 @@ namespace xshazwar.Generation.Base {
                             currentState.Remove(update.coord);
                             ReleaseTile((int) prev.id);
                             OnTileReleased?.Invoke(update.coord);
+                            tokenPool.Return(update);
                         }
                         break;
                     case TileStatus.ACTIVE:
@@ -319,6 +318,7 @@ namespace xshazwar.Generation.Base {
                         currentState[update.coord].status = TileStatus.ACTIVE;
                         HideTile((int) prev.id);
                         OnTileReleased?.Invoke(update.coord);
+                        tokenPool.Return(update);
                         break;
                     case TileStatus.BB:
                         if(update.id != null){

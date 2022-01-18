@@ -1,3 +1,5 @@
+using Unity.Collections;
+
 namespace xshazwar.Renderer {
 
     public interface IRenderTiles{
@@ -7,7 +9,8 @@ namespace xshazwar.Renderer {
         public void hideBillboard(int tokenID);
         public void unhideBillboard(int tokenID);
         public void releaseTile(int tokenID);
-        public void setBillboardHeights(int id, float[] heights);
+        public void RegisterTileUpdated(int id);
+        public NativeSlice<float> getTileHeights(int id);
         public void setBillboardPosition(int id, float x_pos, float z_pos, float y_off, bool waitForHeight=true);
         
     }

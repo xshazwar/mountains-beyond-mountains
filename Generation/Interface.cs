@@ -14,6 +14,6 @@ namespace xshazwar.Generation {
         public Action<GridPos> OnTileReleased {get; set;}
     }
     public interface IProvideHeights{
-        public void GetHeights(GridPos pos, ref float[] values);
+        public void GetHeights(GridPos pos, NativeSlice<float> values);
     }
 }

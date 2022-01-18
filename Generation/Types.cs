@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Concurrent;
+
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -23,6 +25,28 @@ namespace xshazwar.Generation {
         public bool Equals(GridPos p) => x == p.x && z == p.z;
         public override string ToString() => String.Join(", ", new {x, z} );
         public override int GetHashCode() =>  x * 10000000 + z;
+    }
+
+    public class TokenPool {
+        protected readonly ConcurrentBag<TileToken> _objects;
+        protected readonly Func<GridPos,TileStatus, TileToken> _objectGenerator;
+        
+        public TokenPool(){
+            
+            _objectGenerator = (GridPos c, TileStatus t) => new TileToken(c, t);
+            _objects = new ConcurrentBag<TileToken>();
+
+        }
+
+        public TileToken Get(GridPos p, TileStatus t){
+            _objects.TryTake(out TileToken item);
+            if (item != null){
+                item.Recycle(p, t);
+                return item;
+            }
+            return _objectGenerator(p, t);
+        } 
+        public void Return(TileToken item) => _objects.Add(item);
     }
 
     public class TileToken{

@@ -4,21 +4,23 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
+using Unity.Collections;
+
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace xshazwar.Renderer
 {
     public class TerrainRenderer : IRenderTiles {
-        public Mesh mesh;
-        public int meshResolution = 65;
-        public int meshDownscale = 1;
-        public int meshOverlap = 3;
-        public int terrainRange = 3;
-        public int terrainCount = 9;
-        public int terrainBufferSize = 0;
-        public float height = 1000f;
-        public float tileSize = 1000f;
+        protected Mesh mesh;
+        protected int meshResolution = 65;
+        protected int meshDownscale = 1;
+        protected int meshOverlap = 3;
+        protected int terrainRange = 3;
+        protected int terrainCount = 9;
+        protected int terrainBufferSize = 0;
+        protected float height = 1000f;
+        protected float tileSize = 1000f;
         private int range;
 
         // Culling Compute Shader
@@ -26,19 +28,18 @@ namespace xshazwar.Renderer
 
         // Buffers
 
-        public ComputeBuffer fovBuffer;
-        public ComputeBuffer offsetBuffer;
-        public ComputeBuffer terrainBuffer;
-        public ComputeBuffer drawArgsBuffer;
+        protected ComputeBuffer fovBuffer;
+        protected ComputeBuffer offsetBuffer;
+        protected ComputeBuffer terrainBuffer;
+        protected ComputeBuffer drawArgsBuffer;
 
         // CPU Side Buffer Sources
         OffsetData[] offset_data_arr;
-        float[] all_heights_arr;
-        // float[] fov_array;
+        NativeArray<float> all_heights_arr;
 
-        public Material material;
-        public MaterialPropertyBlock materialProps;
-        public Bounds bounds;
+        protected Material material;
+        public MaterialPropertyBlock materialProps; // public so that procedural options can be set externally
+        protected Bounds bounds;
 
         int tileHeightElements = 0;
         private ConcurrentQueue<int> heightsUpdates = new ConcurrentQueue<int>();
@@ -49,7 +50,7 @@ namespace xshazwar.Renderer
         
         private int minAvailableTiles = 10000;
 
-        private Vector3 __extent = new Vector3(100000f, 5000f, 100000f);
+        private Vector3 __extent = new Vector3(1000000f, 20000f, 1000000f);
         public void setBounds(){
             setBounds(Vector3.zero, __extent);
         }
@@ -81,7 +82,7 @@ namespace xshazwar.Renderer
             terrainBufferSize = terrainCount * tileHeightElements;
             setBounds();
             terrainBuffer = new ComputeBuffer(terrainBufferSize, 4);
-            all_heights_arr = new float[terrainBufferSize];
+            all_heights_arr = new NativeArray<float>(terrainBufferSize, Allocator.Persistent);
             for (int i = 0; i < terrainBufferSize; i ++){
                 all_heights_arr[i] = 0.001f;
             }
@@ -154,18 +155,13 @@ namespace xshazwar.Renderer
             }
         }
 
-        public void setBillboardHeights(int id, float[] heights){
-            if (heights.Length != tileHeightElements){
-                throw new OverflowException("resolution mismatch!");
-            }
-            // in shader to pull 1 value @  v.vertex.x, v.vertex.z in tilespace we do:
-            // int idx = _offset.id * (_Mesh_Res * _Mesh_Res) + (v.vertex.x * _Mesh_Res + v.vertex.z);
-            // ergo the first idx is just ^^
+        public NativeSlice<float> getTileHeights(int id){
             int idx = id * tileHeightElements;
-            if (all_heights_arr.Length < idx + tileHeightElements){
-                throw new OverflowException($"HeightBuffer Overflow for id : {id}");
-            }
-            heights.CopyTo(all_heights_arr, idx);
+            return new NativeSlice<float>(all_heights_arr, idx, tileHeightElements);
+        }
+
+        public void RegisterTileUpdated(int id){
+            int idx = id * tileHeightElements;
             heightsUpdates.Enqueue(idx);
         }
 
@@ -227,7 +223,7 @@ namespace xshazwar.Renderer
             ready = false;
             // fov_array = null;
             offset_data_arr = null;
-            all_heights_arr = null;
+            all_heights_arr.Dispose();
             foreach(ComputeBuffer b in new List<ComputeBuffer>{
                 drawArgsBuffer,
                 fovBuffer,

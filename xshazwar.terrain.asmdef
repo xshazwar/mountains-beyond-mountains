@@ -1,0 +1,17 @@
+{
+    "name": "xshazwar.terrain",
+    "rootNamespace": "",
+    "references": [
+        "GUID:7b46d0fbc7f7b8c73be2c6f54048c4b7",
+        "GUID:5802ed2e61f796182ae45801e1ab8094"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -10,7 +10,6 @@ namespace xshazwar.Generation {
         public Action<GridPos> OnRangeUpdated {get; set;}
         
         void NewRange(GridPos coord){
-            Debug.Log($"New Position reported {coord}");
             OnRangeUpdated?.Invoke(coord);
         }
         void OnEnable(){

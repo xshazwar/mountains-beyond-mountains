@@ -19,6 +19,8 @@ using MapMagic.Nodes;
 using MapMagic.Nodes.MatrixGenerators;
 using MapMagic.Terrains;
 
+using Unity.Collections.LowLevel.Unsafe;
+
 using xshazwar.Generation;
 
 namespace xshazwar.Generation.MapMagic {
@@ -78,38 +80,40 @@ namespace xshazwar.Generation.MapMagic {
             }
         }
         
-        public void GetHeights(GridPos pos, ref float[] values){
+        public void GetHeights(GridPos pos, NativeSlice<float> values){
             BillboardLoD lod;
             if (!billboards.TryDequeue(out lod)){
                 lod = BillboardLoD.CloneSettings(prototype, -1, pos);
             }else{
                 lod.recycle(-1, pos);
             }
-            StartGenerate(lod, ref values);
+            StartGenerate(lod, values);
             billboards.Enqueue(lod);
         }
 
-        public void StartGenerate(BillboardLoD lod, ref float[] values){
+        public void StartGenerate(BillboardLoD lod, NativeSlice<float> values){
             lod.data.globals = mm.globals;
             lod.data.random = mm.graph.random;
-            GenerateHeights(lod, ref values);
+            GenerateHeights(lod, values);
         }
-        public void GenerateHeights(BillboardLoD lod, ref float[] values){
+        public void GenerateHeights(BillboardLoD lod, NativeSlice<float> values){
             lod.stop = new StopToken();
             mm.graph.Generate(lod.data, lod.stop);
-            this.FinalizeHeights(lod, ref values);
+            this.FinalizeHeights(lod, values);
         }
 
-        public void FinalizeHeights(BillboardLoD lod, ref float[] values){
+        public void FinalizeHeights(BillboardLoD lod, NativeSlice<float> values){
             TileData data = lod.data;
-            if (data.heights == null || 
-                data.heights.rect.size != data.area.full.rect.size || 
-                data.heights.worldPos != (Vector3)data.area.full.worldPos || 
-                data.heights.worldSize != (Vector3)data.area.full.worldSize) 
-                    data.heights = new MatrixWorld(data.area.full.rect, data.area.full.worldPos, data.area.full.worldSize, data.globals.height);
+            if (
+                    data.heights == null || 
+                    data.heights.rect.size != data.area.full.rect.size || 
+                    data.heights.worldPos != (Vector3)data.area.full.worldPos || 
+                    data.heights.worldSize != (Vector3)data.area.full.worldSize){
+        
+                data.heights = new MatrixWorld(data.area.full.rect, data.area.full.worldPos, data.area.full.worldSize, data.globals.height);
+            }
             data.heights.worldSize.y = data.globals.height;
-            data.heights.Fill(0);	
-
+            data.heights.Fill(0);
 
             foreach ((HeightOutput200 output, MatrixWorld product, MatrixWorld biomeMask) 
                 in data.Outputs<HeightOutput200,MatrixWorld,MatrixWorld> (typeof(HeightOutput200), inSubs:true) )
@@ -128,7 +132,13 @@ namespace xshazwar.Generation.MapMagic {
                     data.heights.arr[a] += val * biomeVal;
                 }
             }
-            values = data.heights.arr;
+            unsafe {
+                fixed (float * srcPtr = data.heights.arr)
+                {
+                    var dstPtr = values.GetUnsafePtr();
+                    UnsafeUtility.MemCpy(dstPtr,srcPtr, sizeof(float) * data.heights.arr.Length);
+                }
+            }
         }
     }
     

@@ -4,6 +4,8 @@
 using System;
 using MapMagic.Core;
 
+
+using Unity.Collections;
 using UnityEngine;
 
 using xshazwar.Generation;
@@ -21,6 +23,11 @@ namespace xshazwar.Generation.MapMagic
 
         #if UNITY_EDITOR
         void OnValidate(){
+            Validate();
+        }
+        #endif
+
+        public void Validate(){
             if (mapmagic == null){
                 throw new Exception("Requires MapMagicObject");
             }
@@ -37,15 +44,9 @@ namespace xshazwar.Generation.MapMagic
                 throw new Exception("Requires Local Settings");
             }
         }
-        #endif
 
         void OnEnable(){
-            if(globals == null){
-                globals = gameObject.transform.parent.gameObject.GetComponent<GenerationGlobals>();
-            }
-            if(locals == null){
-                locals = GetComponent<GenerationLocals>();
-            }
+            Validate();
             source = new MapMagicSource(
                 mapmagic,
                 locals.resolution,
@@ -62,8 +63,8 @@ namespace xshazwar.Generation.MapMagic
         }
 
         // interfaces
-        public void GetHeights(GridPos pos, ref float[] values){
-            source.GetHeights(pos, ref values);
+        public void GetHeights(GridPos pos, NativeSlice<float> values){
+            source.GetHeights(pos, values);
         }
 
     }
