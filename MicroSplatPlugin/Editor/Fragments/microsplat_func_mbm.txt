@@ -1,6 +1,6 @@
-﻿   // MapMagic Billboard Functions
+﻿   // MBM Billboard Functions
 
-   #if _MM2HEIGHT
+   #if _MBM_HEIGHT
       float3 _offset;
       int TILEIDX;
       float MESH_RATIO;
@@ -66,11 +66,11 @@
 // Hooks into microsplat_terrain_core_vertex.txt
 // @ ModifyVertex() into the very beginning of the method
 
-   // #if _MM2HEIGHT
-   //    MapMagicDisplacement(v);
+   // #if _MBM_HEIGHT
+   //    MBMDisplacement(v);
    // #endif
 
-void MapMagicDisplacement(inout VertexData v)
+void MBMDisplacement(inout VertexData v)
 {
    ApplyNormal(v, v.vertex.x, v.vertex.z, TILEIDX);
    v.vertex.y = clamp(
@@ -86,11 +86,11 @@ void MapMagicDisplacement(inout VertexData v)
 //  @ SurfImpl(Input i, float3 worldNormalVertex)
 // into the very beginning of the method
 
-// #if _MM2HEIGHT
-//    MapMagicTerrainNormal(i);
+// #if _MBM_HEIGHT
+//    MBMTerrainNormal(i);
 // #endif
 
-void MapMagicTerrainNormal(inout Input i){
+void MBMTerrainNormal(inout Input i){
    i.worldPos = i.worldPos / 1000;
    i.uv_Control0 = i.worldPos.xz;
 }

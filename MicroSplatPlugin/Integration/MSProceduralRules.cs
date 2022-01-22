@@ -8,7 +8,7 @@ using JBooth.MicroSplat;
 namespace xshazwar.integration.microsplat {
     public class MSProceduralRules : MonoBehaviour
     {
-        #if __MICROSPLAT__
+        #if __MICROSPLAT_PROCTEX__
         public MicroSplatProceduralTextureConfig procTexCfg;
 
         public void setBuffersFromRules(MaterialPropertyBlock m){
@@ -20,6 +20,9 @@ namespace xshazwar.integration.microsplat {
             m.SetTexture("_ProcTexParams", procTexCfg.GetParamTexture());
             m.SetInt("_PCLayerCount", procTexCfg.layers.Count);
             Debug.Log("procs set on material");
+        }
+        #else
+        public void setBuffersFromRules(MaterialPropertyBlock m){
         }
         #endif
     }

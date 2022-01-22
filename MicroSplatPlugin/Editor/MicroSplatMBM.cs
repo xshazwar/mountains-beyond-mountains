@@ -8,13 +8,13 @@ using System.Collections.Generic;
 using JBooth.MicroSplat;
 #endif
 
-namespace xshazwar.MM2 {
+namespace xshazwar.terrain.microsplat.Editor {
 #if __MICROSPLAT__
    [InitializeOnLoad]
-   public class MicroSplatMapMagic : FeatureDescriptor
+   public class MicroSplatMBM : FeatureDescriptor
    {
-      const string sDefine = "__MICROSPLAT_MM2B__";
-      static MicroSplatMapMagic()
+      const string sDefine = "__MICROSPLAT_MBM__";
+      static MicroSplatMBM()
       {
          MicroSplatDefines.InitDefine(sDefine);
       }
@@ -26,12 +26,12 @@ namespace xshazwar.MM2 {
 
       public override string ModuleName()
       {
-         return "MapMagic Billboard";
+         return "Mountains Beyond Mountains";
       }
 
       public enum DefineFeature
       {
-         _MM2HEIGHT,
+         _MBM_HEIGHT,
          kNumFeatures,
       }
 
@@ -40,13 +40,13 @@ namespace xshazwar.MM2 {
       static TextAsset cbuffer;
       static TextAsset defines;
 
-      public enum MM2Mode
+      public enum MBMMode
       {
          None = 0,
          Heights
       }
 
-      public MM2Mode mm2Mode;
+      public MBMMode mbmMode;
       public bool alphaBelowHeight;
       public int textureIndex;
       
@@ -55,7 +55,7 @@ namespace xshazwar.MM2 {
       //   see /Fragments/ _func for details
  
 
-      GUIContent CMM2Mode = new GUIContent("MapMagic2", "Procedural Height Mapping");
+      GUIContent CMBMMode = new GUIContent("Mountains Beyond Mountains", "Procedural Height Mapping");
       static Dictionary<DefineFeature, string> sFeatureNames = new Dictionary<DefineFeature, string>();
       public static string GetFeatureName(DefineFeature feature)
       {
@@ -89,34 +89,18 @@ namespace xshazwar.MM2 {
 
       public override void DrawFeatureGUI(MicroSplatKeywords keywords)
       {
-         mm2Mode = (MM2Mode)EditorGUILayout.EnumPopup(CMM2Mode, mm2Mode);
+         mbmMode = (MBMMode)EditorGUILayout.EnumPopup(CMBMMode, mbmMode);
       }
 
       public override void DrawShaderGUI(MicroSplatShaderGUI shaderGUI, MicroSplatKeywords keywords, Material mat, MaterialEditor materialEditor, MaterialProperty[] props)
       {
-         if (mm2Mode != MM2Mode.None)
+         if (mbmMode != MBMMode.None)
          {
-            if (MicroSplatUtilities.DrawRollup("MM2"))
+            if (MicroSplatUtilities.DrawRollup("MountainsBeyondMountains"))
             {
-                  //TODO add some options to the shader generation
-                  if (mat.HasProperty("_MMData") && mm2Mode != MM2Mode.None)
-                  {
-                    //  Vector4 vals = shaderGUI.FindProp("_AlphaData", props).vectorValue;
-                    //  Vector4 newVals = vals;
-                    //  if (alphaHole == AlphaHoleMode.SplatIndex)
-                    //  {
-                    //     newVals.x = (int)EditorGUILayout.IntSlider(CTextureIndex, (int)vals.x, 0, 16);
-                    //  }
-                    //  if (alphaBelowHeight)
-                    //  {
-                    //     newVals.y = EditorGUILayout.FloatField(CWaterLevel, vals.y);
-                    //  }
-                    //  if (newVals != vals)
-                    //  {
-                    //     shaderGUI.FindProp("_AlphaData", props).vectorValue = newVals;
-                    //  }
-                  
-               }
+               //TODO add some options to the shader generation
+               if (mat.HasProperty("_MMData") && mbmMode != MBMMode.None)
+               {}
             }
          }
 
@@ -125,19 +109,19 @@ namespace xshazwar.MM2 {
       public override string[] Pack()
       {
          List<string> features = new List<string>();
-         if (mm2Mode == MM2Mode.Heights)
+         if (mbmMode == MBMMode.Heights)
          {
-            features.Add(GetFeatureName(DefineFeature._MM2HEIGHT));
+            features.Add(GetFeatureName(DefineFeature._MBM_HEIGHT));
          }
          return features.ToArray();
       }
 
       public override void Unpack(string[] keywords)
       {
-         mm2Mode = MM2Mode.None;
-         if (HasFeature(keywords, DefineFeature._MM2HEIGHT))
+         mbmMode = MBMMode.None;
+         if (HasFeature(keywords, DefineFeature._MBM_HEIGHT))
          {
-            mm2Mode = MM2Mode.Heights;
+            mbmMode = MBMMode.Heights;
          }
       }
 
@@ -146,19 +130,19 @@ namespace xshazwar.MM2 {
          for (int i = 0; i < paths.Length; ++i)
          {
             string p = paths[i];
-            if (p.EndsWith("microsplat_properties_mapmagic.txt"))
+            if (p.EndsWith("microsplat_properties_mbm.txt"))
             {
                properties = AssetDatabase.LoadAssetAtPath<TextAsset>(p);
             }
-            if (p.EndsWith("microsplat_func_mapmagic.txt"))
+            if (p.EndsWith("microsplat_func_mbm.txt"))
             {
                funcs = AssetDatabase.LoadAssetAtPath<TextAsset>(p);
             }
-            if (p.EndsWith ("microsplat_cbuffer_mapmagic.txt"))
+            if (p.EndsWith ("microsplat_cbuffer_mbm.txt"))
             {
                cbuffer = AssetDatabase.LoadAssetAtPath<TextAsset> (p);
             }
-            if (p.EndsWith ("microsplat_defines_mapmagic.txt"))
+            if (p.EndsWith ("microsplat_defines_mbm.txt"))
             {
                defines = AssetDatabase.LoadAssetAtPath<TextAsset> (p);
             }
@@ -167,19 +151,15 @@ namespace xshazwar.MM2 {
 
       public override void WriteProperties(string[] features, System.Text.StringBuilder sb)
       {
-         if (mm2Mode != MM2Mode.None)
+         if (mbmMode != MBMMode.None)
          {
             sb.Append(properties.text);
-            // if (alphaHole == AlphaHoleMode.ClipMap)
-            // {
-            //    sb.AppendLine("      _AlphaHoleTexture(\"ClipMap\", 2D) = \"white\" {}");
-            // }
          }
       }
 
       public override void WriteFunctions(string [] features, System.Text.StringBuilder sb)
       {
-         if (mm2Mode != MM2Mode.None)
+         if (mbmMode != MBMMode.None)
          {
             sb.Append(funcs.text);
          }
@@ -187,27 +167,22 @@ namespace xshazwar.MM2 {
 
       public override void WritePerMaterialCBuffer (string[] features, System.Text.StringBuilder sb)
       {
-         if (mm2Mode != MM2Mode.None)
+         if (mbmMode != MBMMode.None)
          {
             sb.Append(cbuffer.text);
          }
       }
 
       public override void WriteSharedFunctions(string[] features, System.Text.StringBuilder sb) {
-         if (mm2Mode != MM2Mode.None)
+         if (mbmMode != MBMMode.None)
          {
             sb.Append(defines.text);
          }
       }
 
+      // TODO
       public override void ComputeSampleCounts(string[] features, ref int arraySampleCount, ref int textureSampleCount, ref int maxSamples, ref int tessellationSamples, ref int depTexReadLevel)
-      {
-        //  if (alphaHole == AlphaHoleMode.ClipMap)
-        //  {
-        //     textureSampleCount++;
-        //  }
-
-      }
+      {}
 
    }   
 
