@@ -1,6 +1,17 @@
+# Mountains Beyond Mountains (MBM)
+
 ## Introduction:
 
-This tool is intended to allow you to draw large amounts of distant virtual terrain in Unity. By virtual we mean only to be seen and not interacted with on the CPU side, so no colliders, no game objects etc. Anything could in theory be used to provide the heightmaps for the terrain, but MapMagic2 is what's required by the included `ExternGeneration` component and used by `Generation.cs` as a data source. This does not currently play well with "pinned tiles". It can, but there are competing priorities so open a ticket if you're interested.
+This tool is intended to allow you to draw large amounts of procedural terrain in Unity. Currently, this terrain is virtual. By virtual we mean only to be seen and not interacted with on the CPU side, so no colliders, no game objects etc. We plan to optionally include mesh collider generation in the near future. To drive this system we need:
+
+ - A Height source
+ - A method for tracking the current camera position
+
+On the horizon are support for:
+ - Biomes
+
+The input system is modular and interface driven, which hopefully encourages plugin development of new height sources. Currently there are plugins for:
+ - MapMagic2 | Guide | Store Link
 
 
 ## Quickstart:

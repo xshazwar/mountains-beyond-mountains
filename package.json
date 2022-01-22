@@ -1,7 +1,20 @@
 {
-    "name": "xshazwar.terrain",
-    "version": "0.0.2",
-    "description": "Efficient Procedural Terrain Rendering",
-    "displayName": "Mountains Beyond Mountains (MBM)",
-    "unity": "2020.03"
+	"name": "xshazwar.terrain",
+	"version": "0.0.2",
+	"description": "Efficient Procedural Terrain Rendering",
+	"displayName": "Mountains Beyond Mountains (MBM)",
+	"unity": "2020.3",
+	"samples": [
+		{
+
+			"displayName": "Base",
+			"description": "Basic Material, etc",
+			"path": "Samples~/Base"
+		},
+		{
+			"displayName": "MapMagic2",
+			"description": "Demo Concepts for MapMagic2 integration",
+			"path": "Samples~/MapMagic2"
+		}
+	]
 }

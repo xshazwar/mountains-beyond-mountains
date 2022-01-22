@@ -14,7 +14,6 @@ namespace xshazwar.Generation.MapMagic
 {
     [RequireComponent(typeof(GenerationLocals))]
     public class MapMagicHeights : MonoBehaviour, IProvideHeights {
-        // wraps the TerrainRenderer Class because I'm too lazy to refactor it right now
  
         public GenerationGlobals globals;
         public GenerationLocals locals;
@@ -29,7 +28,8 @@ namespace xshazwar.Generation.MapMagic
 
         public void Validate(){
             if (mapmagic == null){
-                throw new Exception("Requires MapMagicObject");
+                Debug.LogError("Requires MapMagicObject");
+                // throw new Exception("Requires MapMagicObject");
             }
             if (globals == null){
                 globals = gameObject.transform.parent.gameObject.GetComponent<GenerationGlobals>();
