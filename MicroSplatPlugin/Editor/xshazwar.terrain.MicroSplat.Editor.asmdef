@@ -1,0 +1,21 @@
+{
+    "name": "xshazwar.terrain.microsplat.Editor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:187d4cc977ab7208f8671da4101cc073",
+        "GUID:4d1ab3c03615ec1b48ab016afbd59ee6",
+        "GUID:90ab0119788ed4ec6b8fe54dd44f01fa",
+        "GUID:4bdfb2239705740718731d0b4d54061d"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

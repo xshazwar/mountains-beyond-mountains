@@ -1,0 +1,96 @@
+﻿   // MBM Billboard Functions
+
+   #if _MBM_HEIGHT
+      float3 _offset;
+      int TILEIDX;
+      float MESH_RATIO;
+      int FMR;
+      int FMR_SQR;
+      float EPS;
+   #endif
+   
+
+   void ConfigureProcedural () {
+      #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
+         TILEIDX = _FOV[unity_InstanceID];
+         _offset = _Offset[TILEIDX];
+         MESH_RATIO = _Mesh_Size / _Mesh_Res;
+         FMR = ((int) _Mesh_Res) + 2 * ((int)_MeshOverlap);
+         FMR_SQR = FMR * FMR;
+         EPS = FMR / _Mesh_Size;
+      #endif
+   }
+
+   int HeightIdx(in int tileID, int x, int z){
+      #if _DownScale <= 1
+         return tileID * FMR_SQR + (z * FMR + x);
+      #endif
+      #if _DownScale > 1
+         // super simple downscale (heighmap has more values than mesh)
+         // so if the mesh is 1/2 the complexity of the HM, we skip every other HM value
+         return tileID * FMR_SQR + ((z * FMR * _DownScale + x * _DownScale);
+      #endif
+   }
+
+   float InterpolateEdge(float a, float b){
+      return a - (b - a);
+   }
+
+   float HeightValue(in int tileID, int x, int z){
+      x = x < 0 ? 0 : x;
+      x = x > FMR ? FMR: x;
+      z = z < 0 ? 0 : z;
+      z = z > FMR ? FMR: z;
+      return _TerrainValues[HeightIdx(tileID, x, z)];
+   }
+
+   void ApplyNormal(inout VertexData v, in float x, in float z, in int tileID){
+      float t = HeightValue(tileID, x, z);
+      float l = x > 0 ? HeightValue(tileID, x - 1, z): InterpolateEdge(t, HeightValue(tileID, x + 1, z));
+      float r = x < FMR - 1 ? HeightValue(tileID, x + 1, z): InterpolateEdge(t, HeightValue(tileID, x - 1, z));
+      float u = z > 0 ? HeightValue(tileID, x, z - 1): InterpolateEdge(t, HeightValue(tileID, x, z + 1));
+      float d = z < FMR - 1 ? HeightValue(tileID, x, z + 1): InterpolateEdge(t, HeightValue(tileID, x, z - 1));
+      // float3 t1 = float3(4.0, (r - l) /(2), 0);
+      // float3 t2 = float3(0, (u - d) /(2), 4.0);
+      // v.tangent.xyz = cross(t2, t1);
+      v.normal = normalize(float3((l - r) / 2 * EPS, 2 / _Height, (u - d) / 2 * EPS));
+      return;
+   }
+
+///////////////////////
+// MS entrypoints
+// (you have to plug in this crap yourself, see below)
+///////////////////////
+
+
+// Hooks into microsplat_terrain_core_vertex.txt
+// @ ModifyVertex() into the very beginning of the method
+
+   // #if _MBM_HEIGHT
+   //    MBMDisplacement(v);
+   // #endif
+
+void MBMDisplacement(inout VertexData v)
+{
+   ApplyNormal(v, v.vertex.x, v.vertex.z, TILEIDX);
+   v.vertex.y = clamp(
+      (_TerrainValues[HeightIdx(TILEIDX, v.vertex.x, v.vertex.z)] * _Height) + _offset.y,
+      -10000,
+      .999 * _Height
+   );
+   v.vertex.x = (v.vertex.x * MESH_RATIO) + _offset.x - ( _MeshOverlap * MESH_RATIO);
+   v.vertex.z = (v.vertex.z * MESH_RATIO) + _offset.z - (_MeshOverlap * MESH_RATIO);
+}
+
+// Hooks into microsplat_terrain_body.txt
+//  @ SurfImpl(Input i, float3 worldNormalVertex)
+// into the very beginning of the method
+
+// #if _MBM_HEIGHT
+//    MBMTerrainNormal(i);
+// #endif
+
+void MBMTerrainNormal(inout Input i){
+   i.worldPos = i.worldPos / 1000;
+   i.uv_Control0 = i.worldPos.xz;
+}
