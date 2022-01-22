@@ -33,7 +33,10 @@ The input system is modular and interface driven, which hopefully encourages plu
 
 MBM installs via the Unity Package Manager, which means the best way to include this library in your project is to [point UPM at this git repository](https://docs.unity3d.com/Manual/upm-ui-giturl.html). It'll be included in your project's `Packages`, *not* in Assets. Use the git url: `https://github.com/xshazwar/mountains-beyond-mountains.git`
 
-You can pull a specific version by appending the tag you want to the git url.
+You can pull a specific version by appending the tag you want to the git url like:
+
+`https://github.com/xshazwar/mountains-beyond-mountains.git#1.0.1`
+
 
 ![](./_doc~/v1/upm.jpg)
 
