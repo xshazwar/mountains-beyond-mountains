@@ -1,6 +1,6 @@
 {
 	"name": "xshazwar.terrain",
-	"version": "0.0.2",
+	"version": "1.0.1",
 	"description": "Efficient Procedural Terrain Rendering",
 	"displayName": "Mountains Beyond Mountains (MBM)",
 	"unity": "2020.3",
