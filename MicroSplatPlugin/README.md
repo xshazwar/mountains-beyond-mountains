@@ -13,7 +13,7 @@ For the sake of efficiency, the renderer sends the same flat mesh to the GPU. Th
  - Microsplat Core
  - MS Procedural Texturing Module (and Samples!)
  - MS URP Module 202x (for URP)
- - MS HDRP Module 202x (for HDRP) [*!not tested!*]
+ - MS HDRP Module 202x (for HDRP)
 
 First, add all of the packages you need. Then, for the purpose of this guide, you should also import the samples for MS Procedural from `Package Manager -> In Project -> Custom -> Microsplat Procedural Texturing -> Samples`
 
@@ -59,9 +59,10 @@ For the purpose of this guide, we assume that you have a scene setup that's alre
  - Copy all of the settings from the example material into the new one, or particular importance are the procedural settings and textures from the `Splats` section.
  - In the `Mountains Beyond Mountains` section, select `Heights`
  - Open the MBM sample scene you want to work with.
- - Add a `MSProceduralRules` component LoD-set GameObject.
+ - Add a `MSProceduralRules` component to each LoD-set GameObject.
    (I.E.) Under `Billboards` each of Lod1, Lod2, Lod3 need this component
  - In each `MSProceduralRules` component, select the `ProcTexCfG` that matches your material name, we used  `MBMProceduralMS` above. 
+ - Set the `OverrideMaterial` in the `GenerationLocals` component of each LoD GameObject to the `MBMProceduralMS` material.
  - Hit Play and checkout the textured terrain.
 
 ![](./_doc~/scene.jpg)
