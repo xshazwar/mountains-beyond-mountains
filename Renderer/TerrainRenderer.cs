@@ -212,9 +212,6 @@ namespace xshazwar.Renderer
             // cull and count
             setCullingGetInstanceCount(camera);
             UnityEngine.Profiling.Profiler.BeginSample("DrawInstancedCall");
-            // if ( count > 0 ){  // Fixes nulls when "Looking" stright down (and probably up) BLAME: Twobob
-            //     Graphics.DrawMeshInstancedProcedural(mesh, 0, material, bounds, count, materialProps);
-            // }
             Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, drawArgsBuffer, 0, materialProps);
             UnityEngine.Profiling.Profiler.EndSample();
         }
@@ -256,16 +253,16 @@ namespace xshazwar.Renderer
                 // we MUST use 32 bit indices or things will be horribly wrong
                 _mesh.indexFormat = IndexFormat.UInt32;
             }
-            int xSize = res -1;
-            int ySize = res -1;
-            Vector3[] vertices = new Vector3[(xSize + 1) * (ySize + 1)];
-            for (int i = 0, y = 0; y <= ySize; y++) {
-                for (int x = 0; x <= xSize; x++, i++) {
+            
+            Vector3[] vertices = new Vector3[res * res];
+            for (int i = 0, y = 0; y < res; y++) {
+                for (int x = 0; x < res; x++, i++) {
                     vertices[i] = new Vector3(x * downscaleFactor, 0, y * downscaleFactor);
                 }
             }
             _mesh.vertices = vertices;
-
+            int xSize = res -1;
+            int ySize = res -1;
             int[] triangles = new int[xSize * ySize * 6];
             for (int ti = 0, vi = 0, y = 0; y < ySize; y++, vi++) {
                 for (int x = 0; x < xSize; x++, ti += 6, vi++) {

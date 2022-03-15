@@ -57,7 +57,7 @@ BEGIN_CODE
       #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
          TILEIDX = _FOV[unity_InstanceID];
          _offset = _Offset[TILEIDX];
-         MESH_RATIO = _Mesh_Size / _Mesh_Res;
+         MESH_RATIO = _Mesh_Size / (_Mesh_Res - 1);
          FMR = ((int) _Mesh_Res) + 2 * ((int)_MeshOverlap);
          FMR_SQR = FMR * FMR;
          EPS = FMR / _Mesh_Size;
@@ -87,6 +87,22 @@ BEGIN_CODE
       return _TerrainValues[HeightIdx(tileID, x, z)];
    }
 
+   float VertexHeight(inout VertexData v){
+      float penalty = 0;
+      if (v.vertex.x < _MeshOverlap || v.vertex.z < _MeshOverlap){
+         penalty += (.11 * _Height);
+      }
+      if (v.vertex.x >= FMR - _MeshOverlap || v.vertex.z >= FMR - _MeshOverlap){
+         penalty += (.1 * _Height);
+      }
+
+      return clamp(
+         (_TerrainValues[HeightIdx(TILEIDX, v.vertex.x, v.vertex.z)] *  _Height) + _offset.y - penalty,
+         -10000 ,
+         _Height
+      );
+   }
+
    void ApplyNormal(inout VertexData v, in float x, in float z, in int tileID){
       float t = HeightValue(tileID, x, z);
       float l = x > 0 ? HeightValue(tileID, x - 1, z): InterpolateEdge(t, HeightValue(tileID, x + 1, z));
@@ -103,13 +119,9 @@ BEGIN_CODE
    void ModifyVertex(inout VertexData v, inout ExtraV2F d){
    #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
       ApplyNormal(v, v.vertex.x, v.vertex.z, TILEIDX);
-      v.vertex.y = clamp(
-         (_TerrainValues[HeightIdx(TILEIDX, v.vertex.x, v.vertex.z)] * _Height) + _offset.y,
-         -10000 ,
-         .999 * _Height
-      );
-      v.vertex.x = (v.vertex.x * MESH_RATIO) + _offset.x - ( _MeshOverlap * MESH_RATIO);
-      v.vertex.z = (v.vertex.z * MESH_RATIO) + _offset.z - (_MeshOverlap * MESH_RATIO);
+      v.vertex.y = VertexHeight(v);
+      v.vertex.x = _offset.x + (v.vertex.x * MESH_RATIO) - (_MeshOverlap * MESH_RATIO);
+      v.vertex.z = _offset.z + (v.vertex.z * MESH_RATIO) - (_MeshOverlap * MESH_RATIO);
    #endif
 	}
 
