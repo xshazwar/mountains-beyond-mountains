@@ -10,13 +10,14 @@ namespace xshazwar.integration.microsplat {
     {
         #if __MICROSPLAT_PROCTEX__
         public MicroSplatProceduralTextureConfig procTexCfg;
+        public MicroSplatPropData propData;
 
         public void setBuffersFromRules(MaterialPropertyBlock m){
-            if (procTexCfg == null){
-                Debug.LogError("No procedural texture configuration set.");
+            if (procTexCfg == null || propData == null){
+                Debug.LogError("Either procedural texture or propdata configuration not set.");
                 throw new Exception("No procedural texture configuration set.");
             }
-            m.SetTexture("_ProcTexCurves", procTexCfg.GetCurveTexture());
+            m.SetTexture("_ProcTexCurves", procTexCfg.GetCurveTexture(propData));
             m.SetTexture("_ProcTexParams", procTexCfg.GetParamTexture());
             m.SetInt("_PCLayerCount", procTexCfg.layers.Count);
             Debug.Log("procs set on material");

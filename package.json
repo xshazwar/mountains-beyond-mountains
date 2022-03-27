@@ -16,5 +16,8 @@
 			"description": "Demo Concepts for MapMagic2 integration",
 			"path": "Samples~/MapMagic2"
 		}
-	]
+	],
+	"dependencies": {
+	    "xshazwar.noize": "0.0.1"
+	 }
 }
